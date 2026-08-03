@@ -1,4 +1,4 @@
-import { Vector2, Vector3, WebGLRenderer } from "three";
+import { Group, Vector2, Vector3, WebGLRenderer } from "three";
 import { DEFAULT_CONFIG, presetForTier, type QualityTier } from "./config/config.js";
 import { GameLoop } from "./core/gameLoop.js";
 import { FpsMeter } from "./core/fpsMeter.js";
@@ -10,10 +10,6 @@ import {
 import { ResizeHandler } from "./rendering/resizeHandler.js";
 import { FpsOverlay } from "./rendering/fpsOverlay.js";
 import { createPostProcess, type PostProcessContext } from "./rendering/postprocess/composer.js";
-import {
-  createSceneContent,
-  type SceneContent,
-} from "./scene/sceneContent.js";
 import { createEnvironment, type Environment } from "./scene/environment.js";
 import { WorldRebase } from "./world/origin.js";
 import { createRacerMesh } from "./racer/racerMesh.js";
@@ -26,7 +22,7 @@ interface ApplicationState {
   resize: ResizeHandler;
   fps: FpsOverlay;
   meter: FpsMeter;
-  sceneContent: SceneContent;
+  worldRoot: Group;
   environment: Environment;
   rebase: WorldRebase;
   renderer: WebGLRenderer;
@@ -37,7 +33,6 @@ interface ApplicationState {
   racer: Racer;
   controls: KeyboardControls;
   chase: ChaseCamera;
-  startTime: number;
 }
 
 function tierFor(renderer: WebGLRenderer): QualityTier {
@@ -73,11 +68,11 @@ function bootstrap(): void {
 
   const scene = createBaseScene();
 
-  const rebase = new WorldRebase({ chunkSize: 256 });
-  scene.add(rebase.root);
-
-  const sceneContent = createSceneContent({ viewport });
-  rebase.root.add(sceneContent.group);
+  // World root holds large-distance content (stars, planets, nebula).
+  // It is shifted by rebase delta to keep render-space precision bounded.
+  const worldRoot = new Group();
+  worldRoot.name = "WorldRoot";
+  scene.add(worldRoot);
 
   const environment = createEnvironment({
     starfield: { pixelRatio: renderer.getPixelRatio() },
@@ -97,16 +92,24 @@ function bootstrap(): void {
       ],
     },
   });
-  rebase.root.add(environment.group);
+  worldRoot.add(environment.group);
 
-  // Racer.
+  // Racer sits under scene at absolute world coords; no rebase shifting.
   const racerMesh = createRacerMesh({ viewport });
   const racer = new Racer(racerMesh.group);
   racer.position.set(0, 0.6, 0);
   racer.heading = 0;
-  rebase.root.add(racerMesh.group);
+  scene.add(racerMesh.group);
 
-  // Camera follow + controls.
+  // Aurora ribbons follow the racer.
+  environment.group.children.forEach((child) => {
+    if (child.name === "AuroraRiver" || child.userData.followsPlayer === true) {
+      child.userData.followsPlayer = true;
+    }
+  });
+
+  const rebase = new WorldRebase({ chunkSize: 256 });
+
   const chase = new ChaseCamera(camera);
   const controls = new KeyboardControls(window);
 
@@ -137,9 +140,17 @@ function bootstrap(): void {
     onUpdate: (deltaSeconds: number) => {
       const input = controls.sample();
       racer.applyInput(input, deltaSeconds);
-      rebase.update(racer.position);
       chase.update(racer.position, racer.heading, racer.speed, deltaSeconds);
-      sceneContent.update(deltaSeconds);
+      const delta = rebase.update(racer.position);
+      camera.position.sub(delta);
+      worldRoot.position.sub(delta);
+      // Anchor aurora to the racer so the river keeps flowing around it.
+      environment.group.children.forEach((child) => {
+        if (child.userData.followsPlayer === true) {
+          child.position.x = -racer.position.x;
+          child.position.z = -racer.position.z;
+        }
+      });
       environment.update(deltaSeconds, performance.now() * 0.001);
     },
     onRender: () => {
@@ -152,7 +163,7 @@ function bootstrap(): void {
     resize,
     fps: overlay,
     meter,
-    sceneContent,
+    worldRoot,
     environment,
     rebase,
     renderer,
@@ -163,7 +174,6 @@ function bootstrap(): void {
     racer,
     controls,
     chase,
-    startTime: performance.now(),
   };
 
   resize.attach();

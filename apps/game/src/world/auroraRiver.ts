@@ -193,6 +193,8 @@ export function createAuroraRiver(options: AuroraRiverOptions): {
   update: (time: number, flow: FlowField) => void;
 } {
   const group = new Group();
+  group.name = "AuroraRiver";
+  group.userData.followsPlayer = true;
   const layers = options.layers.map((layer) => {
     const created = createAuroraLayer(layer);
     group.add(created.mesh);
