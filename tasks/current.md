@@ -1,20 +1,19 @@
 # Current Objective
 
-Milestone: M1 Aurora System
+Milestone: M3 Racer Prototype
 
-Status: Complete
+Create a controllable racer the player can drive through the aurora environment.
 
-Deliverables shipped:
+Requirements:
 
-- World origin rebase keeps the camera near origin; world root floats per chunk.
-- Infinite starfield: three layered Points clouds (~2300 stars) with twinkle.
-- Distant planets: six cel-shaded spheres, slow orbital drift.
-- Nebula regions: three nested back-side domes with fbm-driven drifting color clouds.
-- Aurora river: three layered ribbon meshes driven by a 3D flow field, hard-banded
-  color transitions, additive blended.
-- Procedural flow field with direction/speed/energy sampling.
-- Environment wired into the existing cel-shaded scene; main.ts drifts the player
-  forward to demonstrate world rebase.
+- Procedural cel-shaded hovercraft racer mesh (no external assets)
+- Hover movement model (thrust, lateral grip, ride height)
+- Acceleration, braking, steering
+- Keyboard controls (W/S accelerate/brake, A/D steer, Space boost-ready)
+- Chase camera with spring damping + look-ahead
+- Speed feedback in HUD overlay (m/s)
+- Collision foundations (placeholder bounds; full collision lands in M4/M5)
+- World rebase and camera follow the racer
 
 Verification:
 
@@ -22,5 +21,4 @@ Verification:
 - bun run lint passes
 - bun run build passes
 - bun run dev launches without console errors
-
-Next milestone: M3 Racer Prototype.
+- Manual: pressing W moves the racer forward; A/D steer; speed updates in HUD

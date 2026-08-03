@@ -16,6 +16,10 @@ import {
 } from "./scene/sceneContent.js";
 import { createEnvironment, type Environment } from "./scene/environment.js";
 import { WorldRebase } from "./world/origin.js";
+import { createRacerMesh } from "./racer/racerMesh.js";
+import { Racer } from "./racer/racer.js";
+import { KeyboardControls } from "./racer/controls.js";
+import { ChaseCamera } from "./racer/chaseCamera.js";
 
 interface ApplicationState {
   loop: GameLoop;
@@ -30,7 +34,10 @@ interface ApplicationState {
   tier: QualityTier;
   gpuLabel: string;
   viewport: Vector3;
-  playerPosition: Vector3;
+  racer: Racer;
+  controls: KeyboardControls;
+  chase: ChaseCamera;
+  startTime: number;
 }
 
 function tierFor(renderer: WebGLRenderer): QualityTier {
@@ -66,12 +73,11 @@ function bootstrap(): void {
 
   const scene = createBaseScene();
 
-  // World rebase keeps the camera near origin; everything else sits inside worldRoot.
   const rebase = new WorldRebase({ chunkSize: 256 });
   scene.add(rebase.root);
 
   const sceneContent = createSceneContent({ viewport });
-  scene.add(sceneContent.group);
+  rebase.root.add(sceneContent.group);
 
   const environment = createEnvironment({
     starfield: { pixelRatio: renderer.getPixelRatio() },
@@ -92,6 +98,17 @@ function bootstrap(): void {
     },
   });
   rebase.root.add(environment.group);
+
+  // Racer.
+  const racerMesh = createRacerMesh({ viewport });
+  const racer = new Racer(racerMesh.group);
+  racer.position.set(0, 0.6, 0);
+  racer.heading = 0;
+  rebase.root.add(racerMesh.group);
+
+  // Camera follow + controls.
+  const chase = new ChaseCamera(camera);
+  const controls = new KeyboardControls(window);
 
   const post = createPostProcess(renderer, {
     width: container.clientWidth,
@@ -116,15 +133,12 @@ function bootstrap(): void {
   const tier = tierFor(renderer);
   applyTier(renderer, tier);
 
-  const playerPosition = new Vector3();
-
   const loop = new GameLoop({
     onUpdate: (deltaSeconds: number) => {
-      // Slow forward drift demonstrates world rebase + aurora motion.
-      playerPosition.z += deltaSeconds * 8;
-      camera.position.set(playerPosition.x, playerPosition.y + 2.6, playerPosition.z + 6);
-      camera.lookAt(playerPosition.x, playerPosition.y + 1.1, playerPosition.z);
-      rebase.update(playerPosition);
+      const input = controls.sample();
+      racer.applyInput(input, deltaSeconds);
+      rebase.update(racer.position);
+      chase.update(racer.position, racer.heading, racer.speed, deltaSeconds);
       sceneContent.update(deltaSeconds);
       environment.update(deltaSeconds, performance.now() * 0.001);
     },
@@ -146,7 +160,10 @@ function bootstrap(): void {
     tier,
     gpuLabel: gpuShortName(renderer),
     viewport,
-    playerPosition,
+    racer,
+    controls,
+    chase,
+    startTime: performance.now(),
   };
 
   resize.attach();
@@ -159,6 +176,7 @@ function bootstrap(): void {
     loop.stop();
     resize.detach();
     renderer.dispose();
+    controls.dispose();
   });
 }
 
@@ -199,7 +217,7 @@ function startViewportHud(state: ApplicationState): void {
     if (!el) return;
     el.setAttribute(
       "data-viewport",
-      `${Math.round(state.viewport.x)}x${Math.round(state.viewport.y)} | pos ${state.playerPosition.z.toFixed(1)}`,
+      `${Math.round(state.viewport.x)}x${Math.round(state.viewport.y)} | ${state.racer.speed.toFixed(1)} m/s`,
     );
   }, 500);
 }
