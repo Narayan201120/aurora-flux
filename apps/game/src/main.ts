@@ -14,6 +14,8 @@ import {
   createSceneContent,
   type SceneContent,
 } from "./scene/sceneContent.js";
+import { createEnvironment, type Environment } from "./scene/environment.js";
+import { WorldRebase } from "./world/origin.js";
 
 interface ApplicationState {
   loop: GameLoop;
@@ -21,11 +23,14 @@ interface ApplicationState {
   fps: FpsOverlay;
   meter: FpsMeter;
   sceneContent: SceneContent;
+  environment: Environment;
+  rebase: WorldRebase;
   renderer: WebGLRenderer;
   post: PostProcessContext;
   tier: QualityTier;
   gpuLabel: string;
   viewport: Vector3;
+  playerPosition: Vector3;
 }
 
 function tierFor(renderer: WebGLRenderer): QualityTier {
@@ -60,8 +65,33 @@ function bootstrap(): void {
   const camera = createCamera(container);
 
   const scene = createBaseScene();
+
+  // World rebase keeps the camera near origin; everything else sits inside worldRoot.
+  const rebase = new WorldRebase({ chunkSize: 256 });
+  scene.add(rebase.root);
+
   const sceneContent = createSceneContent({ viewport });
   scene.add(sceneContent.group);
+
+  const environment = createEnvironment({
+    starfield: { pixelRatio: renderer.getPixelRatio() },
+    planets: { count: 6, minDistance: 800, maxDistance: 1400, seed: 0x5EED5 },
+    nebula: {
+      domes: [
+        { radius: 1800, colorA: "#0a1030", colorB: "#2a1850", colorC: "#ff5a9a", intensity: 0.85 },
+        { radius: 1600, colorA: "#04081c", colorB: "#0a3060", colorC: "#76ffd5", intensity: 0.7 },
+        { radius: 1400, colorA: "#0a0814", colorB: "#1f0830", colorC: "#7c5cff", intensity: 0.55 },
+      ],
+    },
+    aurora: {
+      layers: [
+        { length: 600, segments: 80, width: 50, layer: 0, yOffset: 8, colorNear: "#76ffd5", colorMid: "#2fc7ff", colorFar: "#9b6dff", intensity: 1.1 },
+        { length: 700, segments: 80, width: 70, layer: 1, yOffset: 16, colorNear: "#a8ff7a", colorMid: "#67e5ff", colorFar: "#ff7bd9", intensity: 0.85 },
+        { length: 800, segments: 80, width: 90, layer: 2, yOffset: 24, colorNear: "#ff9be0", colorMid: "#9a7dff", colorFar: "#76ffd5", intensity: 0.7 },
+      ],
+    },
+  });
+  rebase.root.add(environment.group);
 
   const post = createPostProcess(renderer, {
     width: container.clientWidth,
@@ -86,9 +116,17 @@ function bootstrap(): void {
   const tier = tierFor(renderer);
   applyTier(renderer, tier);
 
+  const playerPosition = new Vector3();
+
   const loop = new GameLoop({
     onUpdate: (deltaSeconds: number) => {
+      // Slow forward drift demonstrates world rebase + aurora motion.
+      playerPosition.z += deltaSeconds * 8;
+      camera.position.set(playerPosition.x, playerPosition.y + 2.6, playerPosition.z + 6);
+      camera.lookAt(playerPosition.x, playerPosition.y + 1.1, playerPosition.z);
+      rebase.update(playerPosition);
       sceneContent.update(deltaSeconds);
+      environment.update(deltaSeconds, performance.now() * 0.001);
     },
     onRender: () => {
       post.render(scene, camera);
@@ -101,11 +139,14 @@ function bootstrap(): void {
     fps: overlay,
     meter,
     sceneContent,
+    environment,
+    rebase,
     renderer,
     post,
     tier,
     gpuLabel: gpuShortName(renderer),
     viewport,
+    playerPosition,
   };
 
   resize.attach();
@@ -158,7 +199,7 @@ function startViewportHud(state: ApplicationState): void {
     if (!el) return;
     el.setAttribute(
       "data-viewport",
-      `${Math.round(state.viewport.x)}x${Math.round(state.viewport.y)}`,
+      `${Math.round(state.viewport.x)}x${Math.round(state.viewport.y)} | pos ${state.playerPosition.z.toFixed(1)}`,
     );
   }, 500);
 }

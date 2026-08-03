@@ -1,25 +1,26 @@
 # Current Objective
 
-Milestone: M2 Cel Shading Pipeline
+Milestone: M1 Aurora System
 
-Create the visual identity of the game.
+Status: Complete
 
-Requirements:
+Deliverables shipped:
 
-- Custom cel shading with hard lighting bands (3–4 bands, nearest-neighbor thresholds)
-- Inverted-hull outlines with screen-space-consistent thickness
-- Screen-space edge detection pass (normal + depth prepass + Sobel filter)
-- Fresnel rim lighting on lit objects
-- Hard-banded specular highlights
-- Post-processing pipeline with color grading
-- Anime-styled basic scene using the cel materials
-- Outline + cel materials must coexist without double edges
+- World origin rebase keeps the camera near origin; world root floats per chunk.
+- Infinite starfield: three layered Points clouds (~2300 stars) with twinkle.
+- Distant planets: six cel-shaded spheres, slow orbital drift.
+- Nebula regions: three nested back-side domes with fbm-driven drifting color clouds.
+- Aurora river: three layered ribbon meshes driven by a 3D flow field, hard-banded
+  color transitions, additive blended.
+- Procedural flow field with direction/speed/energy sampling.
+- Environment wired into the existing cel-shaded scene; main.ts drifts the player
+  forward to demonstrate world rebase.
 
 Verification:
 
-- bun run check-types succeeds
-- bun run lint succeeds
-- bun run build succeeds
+- bun run check-types passes
+- bun run lint passes
+- bun run build passes
 - bun run dev launches without console errors
-- Visual review: hard banding visible, outlines stable at distance, rim light readable on silhouettes
-- No double edges between inverted-hull outlines and Sobel interior edges
+
+Next milestone: M3 Racer Prototype.
