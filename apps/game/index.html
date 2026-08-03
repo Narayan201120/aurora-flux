@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aurora Flux</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --overlay-bg: rgba(8, 12, 24, 0.65);
+        --overlay-border: rgba(120, 180, 255, 0.35);
+        --overlay-text: #cfe6ff;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #04060f;
+        overflow: hidden;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        color: var(--overlay-text);
+      }
+
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      #fps-overlay {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        padding: 8px 12px;
+        background: var(--overlay-bg);
+        border: 1px solid var(--overlay-border);
+        border-radius: 6px;
+        font-size: 12px;
+        line-height: 1.4;
+        backdrop-filter: blur(6px);
+        pointer-events: none;
+        white-space: pre;
+        min-width: 180px;
+      }
+
+      #fps-overlay .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      #fps-overlay .label {
+        color: rgba(207, 230, 255, 0.6);
+      }
+
+      #fps-overlay .value {
+        color: #b6f2c8;
+      }
+
+      #fps-overlay .value.warn {
+        color: #ffd28a;
+      }
+
+      #fps-overlay .value.bad {
+        color: #ff8a8a;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="fps-overlay" aria-hidden="true"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
