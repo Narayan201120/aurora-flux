@@ -161,22 +161,24 @@ export class Racer {
     };
   }
 
-  applyImpact(obstacle: ObstacleSphere): void {
+  applyImpact(obstacle: ObstacleSphere, worldOrigin: Vector3): void {
     const cfg = this.config;
-    const dx = this.position.x - obstacle.position.x;
-    const dz = this.position.z - obstacle.position.z;
+    // Convert obstacle to world coords for collision check.
+    const worldOx = obstacle.position.x + worldOrigin.x;
+    const worldOz = obstacle.position.z + worldOrigin.z;
+    const dx = this.position.x - worldOx;
+    const dz = this.position.z - worldOz;
     const dist = Math.hypot(dx, dz);
     if (dist >= obstacle.radius) return;
 
     const nx = dist > 1e-4 ? dx / dist : 1;
     const nz = dist > 1e-4 ? dz / dist : 0;
 
-    // Push out of obstacle.
+    // Push racer out of obstacle.
     const overlap = obstacle.radius - dist;
     this.position.x += nx * overlap;
     this.position.z += nz * overlap;
 
-    // Reflect velocity along the normal, dampen, and apply bounce.
     const vDotN = this.velocity.x * nx + this.velocity.z * nz;
     const restitution = 0.35;
     if (vDotN < 0) {
@@ -184,13 +186,11 @@ export class Racer {
       this.velocity.z -= (1 + restitution) * vDotN * nz;
     }
 
-    // Forward speed kick (small bump) along the racer's forward direction.
     const forwardX = Math.sin(this.heading);
     const forwardZ = Math.cos(this.heading);
     this.velocity.x += forwardX * cfg.impactBounce * 0.4;
     this.velocity.z += forwardZ * cfg.impactBounce * 0.4;
 
-    // Cancel boost if active.
     if (this.boostActive) {
       this.boostActive = false;
       this.boostTimer = 0;

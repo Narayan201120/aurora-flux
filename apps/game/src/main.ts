@@ -72,7 +72,8 @@ function bootstrap(): void {
 
   const scene = createBaseScene();
 
-  // World root holds large-distance content (stars, planets, nebula).
+  // World root holds everything that should float with the rebase.
+  // Its position is shifted each frame so render-space coords stay bounded.
   const worldRoot = new Group();
   worldRoot.name = "WorldRoot";
   scene.add(worldRoot);
@@ -97,34 +98,35 @@ function bootstrap(): void {
   });
   worldRoot.add(environment.group);
 
-  // Racer at absolute world coords.
+  // Racer at absolute world coords (never shifted).
   const racerMesh = createRacerMesh({ viewport });
   const racer = new Racer(racerMesh.group);
   racer.position.set(0, 0.6, 0);
   racer.heading = 0;
   scene.add(racerMesh.group);
 
-  // Drafting target (placeholder AI for M8).
+  // Drafting target — lives in render-space (under worldRoot).
   const draftTarget = createDraftingTarget({
     offsetAhead: 18,
     baseSpeed: 70,
-    loopLength: 200,
     laneAmplitude: 1.6,
   });
-  scene.add(draftTarget.group);
+  worldRoot.add(draftTarget.group);
 
-  // Obstacles for impact testing. They follow the player each frame.
+  // Obstacles — render-space mesh, world-space collision sphere.
   const obstacles = createObstaclesField({
     viewport,
-    positions: [
-      { position: new Vector3(-3, 0.6, 30), radius: 1.0 },
-      { position: new Vector3(2.5, 0.6, 65), radius: 1.2 },
-      { position: new Vector3(-1.5, 0.6, 105), radius: 0.9 },
-      { position: new Vector3(3.5, 0.6, 150), radius: 1.1 },
-      { position: new Vector3(-2.5, 0.6, 200), radius: 1.0 },
+    initialPositions: [
+      new Vector3(-3, 0.6, 30),
+      new Vector3(2.5, 0.6, 65),
+      new Vector3(-1.5, 0.6, 105),
+      new Vector3(3.5, 0.6, 150),
+      new Vector3(-2.5, 0.6, 200),
     ],
+    recycleAhead: 220,
+    recycleBehind: -10,
   });
-  scene.add(obstacles.group);
+  worldRoot.add(obstacles.group);
 
   const rebase = new WorldRebase({ chunkSize: 256 });
 
@@ -154,63 +156,58 @@ function bootstrap(): void {
   const tier = tierFor(renderer);
   applyTier(renderer, tier);
 
-  // Track obstacle anchors so we can re-place them ahead of the racer each frame.
-  const obstacleAnchorPositions = obstacles.spheres.map((s) => s.position.clone());
+  // Scratch vectors used in the hot loop.
+  const renderPlayer = new Vector3();
+  const origin = new Vector3();
   let lastBoostFlag = false;
   let lastImpactFlag = false;
 
   const loop = new GameLoop({
     onUpdate: (deltaSeconds: number) => {
       const input = controls.sample();
+
+      // 1. Update racer (uses world coords).
       racer.applyInput(input, deltaSeconds, {
-        position: draftTarget.position,
+        position: racer.position, // placeholder; drafting uses local refs below
         velocity: draftTarget.velocity,
       });
 
-      // Collision check.
-      for (let i = 0; i < obstacles.spheres.length; i += 1) {
-        racer.applyImpact(obstacles.spheres[i]!);
-      }
-
-      chase.update(racer.position, racer.heading, racer.speed, racer.drifting, deltaSeconds);
+      // 2. Compute rebase delta and shift render-space containers.
       const rebaseDelta = rebase.update(racer.position);
-      camera.position.sub(rebaseDelta);
+      origin.copy(rebase.currentOrigin);
       worldRoot.position.sub(rebaseDelta);
+      camera.position.sub(rebaseDelta);
 
-      // Anchor aurora and obstacles to the racer.
-      environment.group.children.forEach((child) => {
-        if (child.userData.followsPlayer === true) {
-          child.position.x = -racer.position.x;
-          child.position.z = -racer.position.z;
-        }
-      });
+      // 3. Compute render-space player position for chase camera.
+      renderPlayer.copy(racer.position).sub(origin);
+      chase.update(renderPlayer, racer.heading, racer.speed, racer.drifting, deltaSeconds);
 
-      // Place obstacles relative to racer (their authored local offsets stay the same).
+      // 4. Drafting target & obstacles operate in render-space. Use the
+      //    racer's render-z for recycling.
+      // Drafting target lives in world coords (uses racer.position).
+      draftTarget.update(deltaSeconds, racer.position, origin);
+      obstacles.update(deltaSeconds, racer.position, origin);
+
+      // Collision check: obstacles expose world-space positions.
       for (let i = 0; i < obstacles.spheres.length; i += 1) {
-        obstacles.spheres[i]!.position.set(
-          racer.position.x + obstacleAnchorPositions[i]!.x,
-          obstacleAnchorPositions[i]!.y,
-          racer.position.z + obstacleAnchorPositions[i]!.z,
-        );
+        racer.applyImpact(obstacles.spheres[i]!, origin);
       }
-      obstacles.group.position.set(0, 0, 0);
 
-      draftTarget.update(deltaSeconds, racer.position);
-      obstacles.update(deltaSeconds);
+      // 6. Animate environment (already at large coords; fine).
       environment.update(deltaSeconds, performance.now() * 0.001);
 
-      // Trigger camera feedback when boost activates.
+      // 7. Feedback triggers.
       if (racer.boostActive && !lastBoostFlag) {
         chase.triggerFovPulse(8, 0.6);
         chase.triggerShake(0.12, 0.25);
       }
       lastBoostFlag = racer.boostActive;
 
-      // Trigger impact feedback.
-      if (racer.lastImpact && racer.recoveryTimer > 0 && !lastImpactFlag) {
+      const inRecovery = racer.lastImpact !== null && racer.recoveryTimer > 0;
+      if (inRecovery && !lastImpactFlag) {
         chase.triggerShake(0.25, 0.35);
       }
-      lastImpactFlag = racer.lastImpact !== null && racer.recoveryTimer > 0;
+      lastImpactFlag = inRecovery;
     },
     onRender: () => {
       post.render(scene, camera);
@@ -241,7 +238,6 @@ function bootstrap(): void {
   loop.start();
   startMeter(state);
   startOverlayUpdates(state);
-  startViewportHud(state);
 
   window.addEventListener("beforeunload", () => {
     loop.stop();
@@ -284,18 +280,6 @@ function startOverlayUpdates(state: ApplicationState): void {
       drafting: state.racer.drafting.intensity,
     });
   }, 250);
-}
-
-function startViewportHud(state: ApplicationState): void {
-  window.setInterval(() => {
-    if (!state.loop.isRunning) return;
-    const el = document.getElementById("fps-overlay");
-    if (!el) return;
-    el.setAttribute(
-      "data-viewport",
-      `${Math.round(state.viewport.x)}x${Math.round(state.viewport.y)}`,
-    );
-  }, 500);
 }
 
 function main(): void {

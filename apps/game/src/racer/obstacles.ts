@@ -1,18 +1,34 @@
 import { Group, Mesh, SphereGeometry, Vector3 } from "three";
 import { CelMaterial } from "../rendering/cel/celMaterial.js";
 import { attachOutline, createOutlineMesh, type OutlineHandle } from "../rendering/cel/outlineMesh.js";
-import type { ObstacleSphere } from "./racer.js";
 
 export interface ObstaclesOptions {
-  positions: ReadonlyArray<{ position: Vector3; radius: number }>;
+  /** Initial world-space positions ahead of the player. */
+  initialPositions: ReadonlyArray<Vector3>;
+  recycleAhead: number;
+  recycleBehind: number;
   viewport: Vector3;
+}
+
+/**
+ * Ring of obstacles at fixed world-space offsets AHEAD of the racer. When the
+ * racer passes an obstacle, it recycles to a position far ahead.
+ *
+ * `spheres[i].position` is in world coordinates (used for collision math).
+ * The visual mesh is parented to the rebase worldRoot so it appears at the
+ * correct render-space position.
+ */
+export interface ObstacleSphere {
+  position: Vector3;
+  radius: number;
 }
 
 export interface ObstaclesField {
   group: Group;
   spheres: ObstacleSphere[];
   outlines: OutlineHandle[];
-  update: (deltaSeconds: number) => void;
+  meshes: Mesh[];
+  update: (deltaSeconds: number, playerPosition: Vector3, worldOrigin: Vector3) => void;
 }
 
 export function createObstaclesField(options: ObstaclesOptions): ObstaclesField {
@@ -20,9 +36,11 @@ export function createObstaclesField(options: ObstaclesOptions): ObstaclesField 
   group.name = "Obstacles";
   const spheres: ObstacleSphere[] = [];
   const outlines: OutlineHandle[] = [];
+  const meshes: Mesh[] = [];
 
-  for (const entry of options.positions) {
-    const geo = new SphereGeometry(entry.radius, 14, 10);
+  for (const initial of options.initialPositions) {
+    const radius = 1.0;
+    const geo = new SphereGeometry(radius, 14, 10);
     const mat = new CelMaterial({
       baseColor: "#67c3ff",
       shadowColor: "#0a1430",
@@ -30,7 +48,7 @@ export function createObstaclesField(options: ObstaclesOptions): ObstaclesField 
       rimColor: "#ffe6b8",
     });
     const mesh = new Mesh(geo, mat);
-    mesh.position.copy(entry.position);
+    mesh.position.copy(initial);
     group.add(mesh);
 
     const outline = createOutlineMesh(
@@ -40,23 +58,39 @@ export function createObstaclesField(options: ObstaclesOptions): ObstaclesField 
     );
     attachOutline(mesh, outline);
     outlines.push(outline);
+    meshes.push(mesh);
 
-    spheres.push({ position: mesh.position, radius: entry.radius });
+    spheres.push({ position: mesh.position.clone(), radius });
   }
 
   return {
     group,
     spheres,
     outlines,
-    update(deltaSeconds: number) {
+    meshes,
+    update(deltaSeconds: number, playerPosition: Vector3, worldOrigin: Vector3) {
       const t = performance.now() * 0.001;
-      // Slow rotation gives life without distracting.
-      for (let i = 0; i < group.children.length; i += 1) {
-        const child = group.children[i] as Mesh;
-        if (child && child.isMesh) {
-          child.rotation.y += deltaSeconds * 0.3;
-          child.rotation.x = Math.sin(t + i) * 0.1;
+
+      // Recycle passed obstacles; respawn them ahead in world coords.
+      for (let i = 0; i < spheres.length; i += 1) {
+        const s = spheres[i]!;
+        if (s.position.z < playerPosition.z + options.recycleBehind) {
+          s.position.z = playerPosition.z + options.recycleAhead;
         }
+      }
+
+      // Sync visuals: position the mesh in render-space (world - origin)
+      // and apply decorative rotation.
+      for (let i = 0; i < meshes.length; i += 1) {
+        const mesh = meshes[i]!;
+        const s = spheres[i]!;
+        mesh.position.set(
+          s.position.x - worldOrigin.x,
+          s.position.y,
+          s.position.z - worldOrigin.z,
+        );
+        mesh.rotation.y += deltaSeconds * 0.3;
+        mesh.rotation.x = Math.sin(t + i) * 0.1;
       }
     },
   };

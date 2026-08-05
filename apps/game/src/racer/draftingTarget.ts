@@ -2,16 +2,17 @@ import { BoxGeometry, Group, Mesh, Vector3 } from "three";
 import { CelMaterial } from "../rendering/cel/celMaterial.js";
 
 /**
- * Placeholder "ghost" racer used as a drafting target until real AI arrives
- * in M8. Travels a straight line ahead of the player; loops when far.
+ * Placeholder ghost racer used as a drafting target until real AI arrives
+ * in M8. Travels in world coordinates ahead of the player at a constant
+ * forward speed.
  *
- * Public API exposes `position` and `velocity` so the racer can read them to
- * compute draft speed bonuses and visual references.
+ * The exposed `position` Vector3 is in WORLD coordinates (used by drafting
+ * math). The visual mesh is parented to the rebase worldRoot and offset to
+ * stay near the player in render-space.
  */
 export interface DraftingTargetOptions {
   offsetAhead: number;
   baseSpeed: number;
-  loopLength: number;
   laneAmplitude: number;
 }
 
@@ -19,7 +20,7 @@ export interface DraftingTarget {
   group: Group;
   position: Vector3;
   velocity: Vector3;
-  update: (deltaSeconds: number, playerPosition: Vector3) => void;
+  update: (deltaSeconds: number, playerPosition: Vector3, worldOrigin: Vector3) => void;
 }
 
 export function createDraftingTarget(options: DraftingTargetOptions): DraftingTarget {
@@ -46,21 +47,30 @@ export function createDraftingTarget(options: DraftingTargetOptions): DraftingTa
     group,
     position,
     velocity,
-    update(deltaSeconds: number, playerPosition: Vector3) {
+    update(deltaSeconds: number, playerPosition: Vector3, worldOrigin: Vector3) {
       phase += deltaSeconds;
-      // Lane oscillation so the ghost weaves slightly (more interesting target).
       const laneX = Math.sin(phase * 0.6) * options.laneAmplitude;
-      // Wrap forward distance so the ghost stays near the player.
       const aheadDistance = options.offsetAhead + Math.sin(phase * 0.2) * 6;
 
+      // World-space position used by drafting math.
       position.set(
         playerPosition.x + laneX,
         0.5,
         playerPosition.z + aheadDistance,
       );
 
-      velocity.set(-Math.cos(phase * 0.6) * 0.6 * options.laneAmplitude, 0, options.baseSpeed);
-      group.position.copy(position);
+      velocity.set(
+        -Math.cos(phase * 0.6) * 0.6 * options.laneAmplitude,
+        0,
+        options.baseSpeed,
+      );
+
+      // Visual position = world position - origin (i.e., render-space).
+      group.position.set(
+        position.x - worldOrigin.x,
+        position.y,
+        position.z - worldOrigin.z,
+      );
     },
   };
 }

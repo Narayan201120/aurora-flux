@@ -34,8 +34,8 @@ const DELTA = new Vector3();
 const ACCEL = new Vector3();
 
 export interface ChaseFeedback {
-  shake: number; // 0..1
-  fovPulse: number; // additive FOV bump
+  shake: number;
+  fovPulse: number;
 }
 
 export class ChaseCamera {
@@ -69,12 +69,17 @@ export class ChaseCamera {
   }
 
   getFeedback(): ChaseFeedback {
-    return {
-      shake: this.shakeMagnitude,
-      fovPulse: this.boostPulseStrength,
-    };
+    return { shake: this.shakeMagnitude, fovPulse: this.boostPulseStrength };
   }
 
+  /**
+   * @param playerPosition player position in render-space (caller has applied
+   *                       the rebase delta so render coords stay near origin).
+   * @param playerHeading world-space heading angle (relative to look-ahead dir).
+   * @param playerSpeed forward speed magnitude.
+   * @param drifting whether the racer is currently drifting.
+   * @param deltaSeconds frame delta.
+   */
   update(
     playerPosition: Vector3,
     playerHeading: number,
@@ -107,7 +112,7 @@ export class ChaseCamera {
     this.currentLookAt.lerp(LOOK_TARGET, Math.min(1, 6 * deltaSeconds));
     this.camera.lookAt(this.currentLookAt);
 
-    // FOV: speed + drift + boost pulse.
+    // FOV.
     const speedRatio = Math.min(1, Math.max(0, playerSpeed / opts.maxSpeed));
     const driftFov = drifting ? opts.fovDriftBoost : 0;
     let targetFov = opts.fovBase + opts.fovSpeedBoost * speedRatio + driftFov;
@@ -122,7 +127,7 @@ export class ChaseCamera {
       this.camera.updateProjectionMatrix();
     }
 
-    // Camera shake (additive offset).
+    // Shake.
     if (this.shakeTimer > 0) {
       this.shakeOffset.set(
         (Math.random() - 0.5) * this.shakeMagnitude,
