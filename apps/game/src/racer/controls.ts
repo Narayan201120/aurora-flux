@@ -11,6 +11,7 @@ export interface KeyBindings {
   right: string[];
   brake: string[];
   handbrake: string[];
+  boost: string[];
 }
 
 export const DEFAULT_BINDINGS: KeyBindings = {
@@ -20,6 +21,7 @@ export const DEFAULT_BINDINGS: KeyBindings = {
   right: ["KeyD", "ArrowRight"],
   brake: ["Space"],
   handbrake: ["ShiftLeft", "ShiftRight"],
+  boost: ["KeyR", "KeyE"],
 };
 
 export class KeyboardControls {
@@ -62,6 +64,7 @@ export class KeyboardControls {
       steer: left - right,
       brake: bindings.brake.some((k) => state.get(k)),
       handbrake: bindings.handbrake.some((k) => state.get(k)),
+      boost: bindings.boost.some((k) => state.get(k)),
     };
   }
 

@@ -5,6 +5,11 @@ export interface FpsOverlayModel {
   triangles: number;
   quality: string;
   renderer: string;
+  speed: number;
+  driftCharge: number;
+  boostActive: boolean;
+  boostCooldown: number;
+  drafting: number;
 }
 
 const formatNumber = (value: number, digits = 0): string => {
@@ -18,10 +23,32 @@ const fpsClass = (fps: number): string => {
   return "value bad";
 };
 
+const bar = (fill: number, segments = 12): string => {
+  const f = Math.max(0, Math.min(1, fill));
+  const filled = Math.round(f * segments);
+  return "█".repeat(filled) + "·".repeat(segments - filled);
+};
+
 export class FpsOverlay {
   constructor(private readonly root: HTMLElement) {}
 
   render(model: FpsOverlayModel): void {
+    const boostLabel = model.boostActive
+      ? "ACTIVE"
+      : model.boostCooldown > 0
+        ? `CD ${model.boostCooldown.toFixed(1)}s`
+        : model.driftCharge >= 0.4
+          ? "READY"
+          : "—";
+
+    const boostColor = model.boostActive
+      ? "#b6f2c8"
+      : model.boostCooldown > 0
+        ? "#ffd28a"
+        : model.driftCharge >= 0.4
+          ? "#9affe0"
+          : "#7a8aa0";
+
     this.root.innerHTML = [
       '<div class="row"><span class="label">FPS</span>',
       `<span class="${fpsClass(model.fps)}">${formatNumber(model.fps, 1)}</span></div>`,
@@ -35,6 +62,14 @@ export class FpsOverlay {
       `<span class="value">${model.quality}</span></div>`,
       '<div class="row"><span class="label">GPU</span>',
       `<span class="value">${model.renderer}</span></div>`,
+      '<div class="row"><span class="label">Speed</span>',
+      `<span class="value">${formatNumber(model.speed, 1)} m/s</span></div>`,
+      '<div class="row"><span class="label">Drift</span>',
+      `<span class="value">${bar(model.driftCharge)} ${formatNumber(model.driftCharge, 2)}</span></div>`,
+      '<div class="row"><span class="label">Boost</span>',
+      `<span class="value" style="color:${boostColor}">${boostLabel}</span></div>`,
+      '<div class="row"><span class="label">Draft</span>',
+      `<span class="value">${formatNumber(model.drafting, 2)}</span></div>`,
     ].join("");
   }
 

@@ -16,6 +16,8 @@ import { createRacerMesh } from "./racer/racerMesh.js";
 import { Racer } from "./racer/racer.js";
 import { KeyboardControls } from "./racer/controls.js";
 import { ChaseCamera } from "./racer/chaseCamera.js";
+import { createDraftingTarget, type DraftingTarget } from "./racer/draftingTarget.js";
+import { createObstaclesField, type ObstaclesField } from "./racer/obstacles.js";
 
 interface ApplicationState {
   loop: GameLoop;
@@ -24,6 +26,8 @@ interface ApplicationState {
   meter: FpsMeter;
   worldRoot: Group;
   environment: Environment;
+  obstacles: ObstaclesField;
+  draftTarget: DraftingTarget;
   rebase: WorldRebase;
   renderer: WebGLRenderer;
   post: PostProcessContext;
@@ -69,7 +73,6 @@ function bootstrap(): void {
   const scene = createBaseScene();
 
   // World root holds large-distance content (stars, planets, nebula).
-  // It is shifted by rebase delta to keep render-space precision bounded.
   const worldRoot = new Group();
   worldRoot.name = "WorldRoot";
   scene.add(worldRoot);
@@ -94,19 +97,34 @@ function bootstrap(): void {
   });
   worldRoot.add(environment.group);
 
-  // Racer sits under scene at absolute world coords; no rebase shifting.
+  // Racer at absolute world coords.
   const racerMesh = createRacerMesh({ viewport });
   const racer = new Racer(racerMesh.group);
   racer.position.set(0, 0.6, 0);
   racer.heading = 0;
   scene.add(racerMesh.group);
 
-  // Aurora ribbons follow the racer.
-  environment.group.children.forEach((child) => {
-    if (child.name === "AuroraRiver" || child.userData.followsPlayer === true) {
-      child.userData.followsPlayer = true;
-    }
+  // Drafting target (placeholder AI for M8).
+  const draftTarget = createDraftingTarget({
+    offsetAhead: 18,
+    baseSpeed: 70,
+    loopLength: 200,
+    laneAmplitude: 1.6,
   });
+  scene.add(draftTarget.group);
+
+  // Obstacles for impact testing. They follow the player each frame.
+  const obstacles = createObstaclesField({
+    viewport,
+    positions: [
+      { position: new Vector3(-3, 0.6, 30), radius: 1.0 },
+      { position: new Vector3(2.5, 0.6, 65), radius: 1.2 },
+      { position: new Vector3(-1.5, 0.6, 105), radius: 0.9 },
+      { position: new Vector3(3.5, 0.6, 150), radius: 1.1 },
+      { position: new Vector3(-2.5, 0.6, 200), radius: 1.0 },
+    ],
+  });
+  scene.add(obstacles.group);
 
   const rebase = new WorldRebase({ chunkSize: 256 });
 
@@ -136,22 +154,63 @@ function bootstrap(): void {
   const tier = tierFor(renderer);
   applyTier(renderer, tier);
 
+  // Track obstacle anchors so we can re-place them ahead of the racer each frame.
+  const obstacleAnchorPositions = obstacles.spheres.map((s) => s.position.clone());
+  let lastBoostFlag = false;
+  let lastImpactFlag = false;
+
   const loop = new GameLoop({
     onUpdate: (deltaSeconds: number) => {
       const input = controls.sample();
-      racer.applyInput(input, deltaSeconds);
-      chase.update(racer.position, racer.heading, racer.speed, deltaSeconds);
-      const delta = rebase.update(racer.position);
-      camera.position.sub(delta);
-      worldRoot.position.sub(delta);
-      // Anchor aurora to the racer so the river keeps flowing around it.
+      racer.applyInput(input, deltaSeconds, {
+        position: draftTarget.position,
+        velocity: draftTarget.velocity,
+      });
+
+      // Collision check.
+      for (let i = 0; i < obstacles.spheres.length; i += 1) {
+        racer.applyImpact(obstacles.spheres[i]!);
+      }
+
+      chase.update(racer.position, racer.heading, racer.speed, racer.drifting, deltaSeconds);
+      const rebaseDelta = rebase.update(racer.position);
+      camera.position.sub(rebaseDelta);
+      worldRoot.position.sub(rebaseDelta);
+
+      // Anchor aurora and obstacles to the racer.
       environment.group.children.forEach((child) => {
         if (child.userData.followsPlayer === true) {
           child.position.x = -racer.position.x;
           child.position.z = -racer.position.z;
         }
       });
+
+      // Place obstacles relative to racer (their authored local offsets stay the same).
+      for (let i = 0; i < obstacles.spheres.length; i += 1) {
+        obstacles.spheres[i]!.position.set(
+          racer.position.x + obstacleAnchorPositions[i]!.x,
+          obstacleAnchorPositions[i]!.y,
+          racer.position.z + obstacleAnchorPositions[i]!.z,
+        );
+      }
+      obstacles.group.position.set(0, 0, 0);
+
+      draftTarget.update(deltaSeconds, racer.position);
+      obstacles.update(deltaSeconds);
       environment.update(deltaSeconds, performance.now() * 0.001);
+
+      // Trigger camera feedback when boost activates.
+      if (racer.boostActive && !lastBoostFlag) {
+        chase.triggerFovPulse(8, 0.6);
+        chase.triggerShake(0.12, 0.25);
+      }
+      lastBoostFlag = racer.boostActive;
+
+      // Trigger impact feedback.
+      if (racer.lastImpact && racer.recoveryTimer > 0 && !lastImpactFlag) {
+        chase.triggerShake(0.25, 0.35);
+      }
+      lastImpactFlag = racer.lastImpact !== null && racer.recoveryTimer > 0;
     },
     onRender: () => {
       post.render(scene, camera);
@@ -165,6 +224,8 @@ function bootstrap(): void {
     meter,
     worldRoot,
     environment,
+    obstacles,
+    draftTarget,
     rebase,
     renderer,
     post,
@@ -216,6 +277,11 @@ function startOverlayUpdates(state: ApplicationState): void {
       triangles: state.renderer.info.render.triangles,
       quality: state.tier,
       renderer: state.gpuLabel,
+      speed: state.racer.speed,
+      driftCharge: state.racer.driftCharge,
+      boostActive: state.racer.boostActive,
+      boostCooldown: state.racer.boostCooldownTimer,
+      drafting: state.racer.drafting.intensity,
     });
   }, 250);
 }
@@ -227,7 +293,7 @@ function startViewportHud(state: ApplicationState): void {
     if (!el) return;
     el.setAttribute(
       "data-viewport",
-      `${Math.round(state.viewport.x)}x${Math.round(state.viewport.y)} | ${state.racer.speed.toFixed(1)} m/s`,
+      `${Math.round(state.viewport.x)}x${Math.round(state.viewport.y)}`,
     );
   }, 500);
 }
