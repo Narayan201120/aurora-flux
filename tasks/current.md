@@ -24,6 +24,7 @@ candidate passes the full deterministic, browser, screenshot, and build suite.
 - Countdown, finish results, and restart flow
 - Web Audio synthesis for engine, countdown, drift, boost, impact, hazard, and finish cues
 - Audio graph unlock diagnostics and runtime event verification
+- Filtered, low-gain, compressed engine output with runtime safety checks
 - Adaptive pixel-ratio quality scaling for constrained hardware
 - Adaptive starfield particle scaling with low/medium/high tiers
 - CPU, GPU, draw-call, triangle, geometry, and texture telemetry

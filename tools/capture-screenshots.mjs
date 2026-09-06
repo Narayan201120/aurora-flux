@@ -92,7 +92,10 @@ const audioReady = await page.evaluate(
 if (
   audioReady?.contextState !== "running" ||
   !audioReady.events.includes("engine") ||
-  !audioReady.events.includes("ambient")
+  !audioReady.events.includes("ambient") ||
+  audioReady.engineWaveform === "sawtooth" ||
+  audioReady.masterGain > 0.14 ||
+  audioReady.engineGain > 0.03
 ) {
   errors.push(`Audio graph did not unlock: ${JSON.stringify(audioReady)}`);
 }

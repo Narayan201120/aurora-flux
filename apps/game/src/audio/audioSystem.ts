@@ -22,13 +22,18 @@ export type AudioEventKind =
 export interface AudioSnapshot {
   contextState: AudioContextState | "locked";
   events: ReadonlyArray<AudioEventKind>;
+  engineWaveform: OscillatorType | "locked";
+  masterGain: number;
+  engineGain: number;
 }
 
 /** Small procedural soundtrack. It stays silent until a user gesture unlocks it. */
 export class AudioSystem {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
   private engine: OscillatorNode | null = null;
+  private engineFilter: BiquadFilterNode | null = null;
   private engineGain: GainNode | null = null;
   private ambient: OscillatorNode | null = null;
   private lastStatus = "";
@@ -57,9 +62,14 @@ export class AudioSystem {
       0.04,
     );
     this.engineGain?.gain.setTargetAtTime(
-      0.018 + speedRatio * 0.05 + (frame.racer.drifting ? 0.014 : 0),
+      0.006 + speedRatio * 0.018 + (frame.racer.drifting ? 0.004 : 0),
       context.currentTime,
       0.06,
+    );
+    this.engineFilter?.frequency.setTargetAtTime(
+      520 + speedRatio * 260,
+      context.currentTime,
+      0.08,
     );
     this.ambient?.frequency.setTargetAtTime(
       41 + speedRatio * 4,
@@ -68,10 +78,10 @@ export class AudioSystem {
     );
     this.master?.gain.setTargetAtTime(
       frame.race.phase === "finished"
-        ? 0.3
+        ? 0.13
         : frame.hazards.effect.active
-          ? 0.2
-          : 0.25,
+          ? 0.1
+          : 0.12,
       context.currentTime,
       0.12,
     );
@@ -121,6 +131,9 @@ export class AudioSystem {
     return {
       contextState: this.context?.state ?? "locked",
       events: [...this.eventLog],
+      engineWaveform: this.engine?.type ?? "locked",
+      masterGain: this.master?.gain.value ?? 0,
+      engineGain: this.engineGain?.gain.value ?? 0,
     };
   }
 
@@ -134,16 +147,28 @@ export class AudioSystem {
   private createGraph(): void {
     const context = new AudioContext();
     const master = context.createGain();
-    master.gain.value = 0.25;
-    master.connect(context.destination);
+    master.gain.value = 0.12;
+    const compressor = context.createDynamicsCompressor();
+    compressor.threshold.value = -18;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 8;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.15;
+    master.connect(compressor);
+    compressor.connect(context.destination);
 
     const engineGain = context.createGain();
-    engineGain.gain.value = 0.018;
+    engineGain.gain.value = 0.006;
     engineGain.connect(master);
     const engine = context.createOscillator();
-    engine.type = "sawtooth";
+    engine.type = "triangle";
     engine.frequency.value = 70;
-    engine.connect(engineGain);
+    const engineFilter = context.createBiquadFilter();
+    engineFilter.type = "lowpass";
+    engineFilter.frequency.value = 520;
+    engineFilter.Q.value = 0.5;
+    engine.connect(engineFilter);
+    engineFilter.connect(engineGain);
     engine.start();
 
     const ambient = context.createOscillator();
@@ -157,7 +182,9 @@ export class AudioSystem {
 
     this.context = context;
     this.master = master;
+    this.compressor = compressor;
     this.engine = engine;
+    this.engineFilter = engineFilter;
     this.engineGain = engineGain;
     this.ambient = ambient;
     this.record("engine");

@@ -39,6 +39,7 @@ The repository contains the Aurora Flux release candidate through M13:
 - Procedural rider animation with finish celebration
 - Responsive race HUD with mobile verification and accessible field labels
 - Procedural Web Audio engine, ambient bed, event cues, and dynamic mixing
+- Ear-safer filtered and compressed engine mix with browser gain assertions
 - Adaptive quality tiers with particle scaling and runtime performance telemetry
 - Finalized transient impact feedback and release-candidate verification
 - Procedural hazards (including dark matter storms), landmarks, riders, HUD,
