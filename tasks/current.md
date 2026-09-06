@@ -1,6 +1,6 @@
 # Current objective
 
-Milestone: Phase 2 visual uplift, Stage 3 complete
+Milestone: Phase 3 production readiness plan accepted
 
 M13 remains complete and verified. Phase 2 is a post-release visual milestone.
 Stage 1 adds the Aurora Ribbon material upgrade, the presentation-only
@@ -9,7 +9,10 @@ speed lines and chromatic pulses, and a fixed-capacity instanced FX pool. Race
 physics, handling, AI, checkpoints, and audio output safety remain unchanged.
 
 Phase 2 implementation is complete. The final regression and screenshot
-review have passed. The release-candidate gameplay boundary remains frozen.
+review have passed. Phase 3 is planned as a production pass focused on visual
+readability, player safety, repeated-session stability, and replay value. No
+Phase 3 implementation has started. The release-candidate gameplay boundary
+remains frozen.
 
 ## Implemented systems
 
@@ -40,6 +43,9 @@ review have passed. The release-candidate gameplay boundary remains frozen.
   quality-tier landmark fallbacks
 - Phase 2 Stage 3 normalized SensoryBus mapping, rival-specific wake trails,
   portrait camera framing, and browser assertions for bounded reactive state
+- Phase 3 plan covering visual benchmarks, reduced motion, pause and audio
+  settings, performance soak, personal bests, trial conditions, and release
+  gates
 
 ## Verification
 
@@ -55,3 +61,7 @@ The browser harness assumes `bun run dev` is running at
 `http://127.0.0.1:5173/`. It writes runtime evidence to
 `notes/browser-captures/` and fails on page errors, WebGL shader errors, HTTP
 errors, incomplete three-lap flow, or a broken restart.
+
+The Phase 3 implementation order is documented in
+`docs/phase-3-production-plan.md`. The next implementation milestone is P3.0,
+the benchmark and visual-critic baseline.

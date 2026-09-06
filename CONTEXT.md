@@ -47,6 +47,29 @@ or navigation value. Random decoration is not a landmark anchor.
 The low, medium, or high presentation budget chosen by adaptive quality. Every
 Phase 2 effect must have a defined degradation path.
 
+### Visual benchmark
+
+A deterministic screenshot state with a named viewport, quality tier, and race
+moment. It proves that a visual change can be reviewed again. A benchmark is
+not a pixel-perfect comparison for animated scenes.
+
+### Player settings
+
+Validated preferences for motion, quality, audio levels, and mute. Settings
+change presentation and comfort only. They do not change race rules.
+
+### Trial condition
+
+A closed, deterministic race presentation condition that gives a rematch a
+different target or atmosphere without changing handling constants,
+checkpoint semantics, or control inputs.
+
+### Race record
+
+A versioned local record written only after a completed three-lap race. A
+restart, incomplete run, corrupt record, or changed rules version cannot
+replace a valid record.
+
 ## Boundaries
 
 - Racing owns handling, progress, drift, boost, and collisions.
@@ -54,4 +77,6 @@ Phase 2 effect must have a defined degradation path.
 - Rendering owns materials, post-processing, particles, and visual state.
 - Audio owns synthesis, mixing, compression, and the normalized SensoryBus.
 - UI reads snapshots and does not become a source of truth.
-
+- Settings are parsed at the storage boundary and read by UI, audio, and
+  rendering as validated presentation preferences.
+- Race records belong to results persistence. They do not become race state.
