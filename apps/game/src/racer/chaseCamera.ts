@@ -4,6 +4,7 @@ export interface ChaseCameraOptions {
   followDistance: number;
   followHeight: number;
   lookAheadDistance: number;
+  driftCameraBias: number;
   springStiffness: number;
   springDamping: number;
   fovBase: number;
@@ -15,14 +16,15 @@ export interface ChaseCameraOptions {
 }
 
 export const DEFAULT_CHASE: ChaseCameraOptions = {
-  followDistance: 6.5,
-  followHeight: 2.6,
-  lookAheadDistance: 4.0,
+  followDistance: 8.4,
+  followHeight: 3.45,
+  lookAheadDistance: 6.2,
+  driftCameraBias: 0.35,
   springStiffness: 7.5,
   springDamping: 4.0,
   fovBase: 60,
-  fovSpeedBoost: 14,
-  fovDriftBoost: 6,
+  fovSpeedBoost: 5,
+  fovDriftBoost: 2.5,
   shakeDecay: 5.0,
   maxShake: 0.35,
   maxSpeed: 90,
@@ -47,6 +49,7 @@ export class ChaseCamera {
   private shakeMagnitude = 0;
   private boostPulseTimer = 0;
   private boostPulseStrength = 0;
+  private initialized = false;
 
   constructor(
     private readonly camera: PerspectiveCamera,
@@ -59,13 +62,22 @@ export class ChaseCamera {
   }
 
   triggerShake(magnitude: number, durationSeconds = 0.35): void {
-    this.shakeMagnitude = Math.min(this.options.maxShake, this.shakeMagnitude + magnitude);
+    this.shakeMagnitude = Math.min(
+      this.options.maxShake,
+      this.shakeMagnitude + magnitude,
+    );
     this.shakeTimer = Math.max(this.shakeTimer, durationSeconds);
   }
 
   triggerFovPulse(magnitude: number, durationSeconds = 0.6): void {
     this.boostPulseStrength = Math.max(this.boostPulseStrength, magnitude);
     this.boostPulseTimer = Math.max(this.boostPulseTimer, durationSeconds);
+  }
+
+  /** Preserve the view when the floating origin snaps to a new chunk. */
+  shiftRenderOrigin(originDelta: Vector3): void {
+    this.camera.position.sub(originDelta);
+    this.currentLookAt.sub(originDelta);
   }
 
   getFeedback(): ChaseFeedback {
@@ -78,6 +90,7 @@ export class ChaseCamera {
    * @param playerHeading world-space heading angle (relative to look-ahead dir).
    * @param playerSpeed forward speed magnitude.
    * @param drifting whether the racer is currently drifting.
+   * @param steerAngle current steering angle used for drift framing.
    * @param deltaSeconds frame delta.
    */
   update(
@@ -85,6 +98,7 @@ export class ChaseCamera {
     playerHeading: number,
     playerSpeed: number,
     drifting: boolean,
+    steerAngle: number,
     deltaSeconds: number,
   ): void {
     const opts = this.options;
@@ -97,6 +111,22 @@ export class ChaseCamera {
       playerPosition.y + opts.followHeight,
       playerPosition.z - forwardZ * opts.followDistance,
     );
+
+    // Bias the chase position outward during a drift so the racer silhouette
+    // and the corner direction remain readable at speed.
+    if (drifting) {
+      const rightX = forwardZ;
+      const rightZ = -forwardX;
+      const bias = steerAngle * opts.driftCameraBias;
+      DESIRED_POS.x += rightX * bias;
+      DESIRED_POS.z += rightZ * bias;
+    }
+
+    // Snap to the desired position on the first frame (skip spring-in).
+    if (!this.initialized) {
+      this.camera.position.copy(DESIRED_POS);
+      this.initialized = true;
+    }
 
     DELTA.copy(DESIRED_POS).sub(this.camera.position);
     ACCEL.copy(DELTA).multiplyScalar(opts.springStiffness);
@@ -121,14 +151,17 @@ export class ChaseCamera {
       targetFov += pulse;
       this.boostPulseTimer = Math.max(0, this.boostPulseTimer - deltaSeconds);
     }
-    this.currentFov += (targetFov - this.currentFov) * Math.min(1, 4 * deltaSeconds);
+    this.currentFov +=
+      (targetFov - this.currentFov) * Math.min(1, 4 * deltaSeconds);
     if (Math.abs(this.currentFov - this.camera.fov) > 0.001) {
       this.camera.fov = this.currentFov;
       this.camera.updateProjectionMatrix();
     }
 
-    // Shake.
+    // Camera shake (additive offset). Subtract the previous frame's offset
+    // before adding the new one so shake does not accumulate.
     if (this.shakeTimer > 0) {
+      this.camera.position.sub(this.shakeOffset);
       this.shakeOffset.set(
         (Math.random() - 0.5) * this.shakeMagnitude,
         (Math.random() - 0.5) * this.shakeMagnitude * 0.5,
@@ -138,8 +171,13 @@ export class ChaseCamera {
       this.shakeTimer = Math.max(0, this.shakeTimer - deltaSeconds);
       const decayFactor = Math.max(0, 1 - opts.shakeDecay * deltaSeconds);
       this.shakeMagnitude *= decayFactor;
-      if (this.shakeTimer === 0) this.shakeMagnitude = 0;
-    } else {
+      if (this.shakeTimer === 0) {
+        this.shakeMagnitude = 0;
+        this.shakeOffset.set(0, 0, 0);
+      }
+    } else if (this.shakeOffset.lengthSq() > 0) {
+      // Cleanup any residual offset from a previous shake.
+      this.camera.position.sub(this.shakeOffset);
       this.shakeOffset.set(0, 0, 0);
     }
   }

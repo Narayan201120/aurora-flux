@@ -48,7 +48,7 @@ float noise(vec3 p) {
   return mix(
     mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
     mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y),
-    f.z,
+    f.z
   );
 }
 

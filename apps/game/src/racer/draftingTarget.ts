@@ -6,9 +6,8 @@ import { CelMaterial } from "../rendering/cel/celMaterial.js";
  * in M8. Travels in world coordinates ahead of the player at a constant
  * forward speed.
  *
- * The exposed `position` Vector3 is in WORLD coordinates (used by drafting
- * math). The visual mesh is parented to the rebase worldRoot and offset to
- * stay near the player in render-space.
+ * The exposed `position` Vector3 and visual mesh position are both in world
+ * coordinates. Its rebased parent supplies the world-to-render translation.
  */
 export interface DraftingTargetOptions {
   offsetAhead: number;
@@ -20,10 +19,12 @@ export interface DraftingTarget {
   group: Group;
   position: Vector3;
   velocity: Vector3;
-  update: (deltaSeconds: number, playerPosition: Vector3, worldOrigin: Vector3) => void;
+  update: (deltaSeconds: number, playerPosition: Vector3) => void;
 }
 
-export function createDraftingTarget(options: DraftingTargetOptions): DraftingTarget {
+export function createDraftingTarget(
+  options: DraftingTargetOptions,
+): DraftingTarget {
   const group = new Group();
   group.name = "DraftingTarget";
 
@@ -47,7 +48,7 @@ export function createDraftingTarget(options: DraftingTargetOptions): DraftingTa
     group,
     position,
     velocity,
-    update(deltaSeconds: number, playerPosition: Vector3, worldOrigin: Vector3) {
+    update(deltaSeconds: number, playerPosition: Vector3) {
       phase += deltaSeconds;
       const laneX = Math.sin(phase * 0.6) * options.laneAmplitude;
       const aheadDistance = options.offsetAhead + Math.sin(phase * 0.2) * 6;
@@ -65,12 +66,8 @@ export function createDraftingTarget(options: DraftingTargetOptions): DraftingTa
         options.baseSpeed,
       );
 
-      // Visual position = world position - origin (i.e., render-space).
-      group.position.set(
-        position.x - worldOrigin.x,
-        position.y,
-        position.z - worldOrigin.z,
-      );
+      // The rebased parent handles conversion into render-space.
+      group.position.set(position.x, position.y, position.z);
     },
   };
 }

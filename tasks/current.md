@@ -1,25 +1,38 @@
-# Current Objective
+# Current objective
 
-Milestone: M4 Racing Mechanics
+Milestone: M13 polish pass / playable release candidate
 
-Transform movement into an arcade racing feel.
+Aurora Flux now runs as a complete procedural arcade race loop. The player
+starts in a three-second countdown, races a three-lap circuit against three
+route-following opponents, receives live hazard warnings, and reaches a
+results screen that can restart the race.
 
-Requirements:
+## Implemented systems
 
-- Drift mechanics (handbrake + steering reduces lateral grip)
-- Drift charging (accumulator builds while drifting, decays otherwise)
-- Boost system (release charged drift for a timed speed boost)
-- Drafting system (gain speed when behind another racer)
-- Impact recovery (collision response with bounce-back and input damping)
-- Speed balancing (boost extends top speed; tuning constants surfaced)
-- Visual feedback (camera shake/drift bias, FOV pulse on boost, exposure flash)
-- Vehicle tuning config (single source of truth for racer balance)
+- Deterministic closed Catmull–Rom circuit with animated energy ribbon
+- Ordered checkpoints, finish gate, three-lap progression, and wrong-way state
+- Spring chase camera, drift framing, boost feedback, and floating-origin rebasing
+- Three distinct AI racers with pace, lane, and risk differences
+- Procedural rider pilots with lean, drift, boost, idle, and impact animation
+- Meteor, lightning, gravity-well, comet, and spatial-fracture hazards
+- Instanced crystal forests, celestial arches, shattered moon fragments, and a migrating leviathan
+- Race HUD with speed, lap, timer, position, boost charge, hazard channel, and minimap
+- Countdown, finish results, and restart flow
+- Web Audio synthesis for engine, countdown, drift, boost, impact, hazard, and finish cues
+- Adaptive pixel-ratio quality scaling for constrained hardware
+- Playwright browser harness with startup, movement, three-lap finish, and restart captures
 
-Verification:
+## Verification
 
-- bun run check-types passes
-- bun run lint passes
-- bun run build passes
-- bun run dev launches without console errors
-- Manual: handbrake + steer slides; releasing charges a boost; pressing boost uses it
-- Manual: chasing the showcase-area ahead point briefly speeds up the racer
+```text
+bun run check-types
+bun run lint
+bun run build
+bun run verify:race
+node tools/capture-screenshots.mjs
+```
+
+The browser harness assumes `bun run dev` is running at
+`http://127.0.0.1:5173/`. It writes runtime evidence to
+`notes/browser-captures/` and fails on page errors, WebGL shader errors, HTTP
+errors, incomplete three-lap flow, or a broken restart.

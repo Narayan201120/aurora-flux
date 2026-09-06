@@ -29,7 +29,10 @@ export class KeyboardControls {
   private readonly bindings: KeyBindings;
   private readonly detach: () => void;
 
-  constructor(target: Window = window, bindings: KeyBindings = DEFAULT_BINDINGS) {
+  constructor(
+    target: Window = window,
+    bindings: KeyBindings = DEFAULT_BINDINGS,
+  ) {
     this.bindings = bindings;
     const onKey = (event: KeyboardEvent, pressed: boolean): void => {
       if (this.isRelevant(event)) {
@@ -71,7 +74,11 @@ export class KeyboardControls {
   private isRelevant(event: KeyboardEvent): boolean {
     if (event.target instanceof HTMLElement) {
       const tag = event.target.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || event.target.isContentEditable) {
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        event.target.isContentEditable
+      ) {
         return false;
       }
     }

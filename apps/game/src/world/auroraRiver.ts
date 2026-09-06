@@ -96,7 +96,7 @@ export function createAuroraLayer(options: AuroraLayerOptions): {
     const y = options.yOffset;
     const z = along * 0.6;
 
-    const left = (i * 2) * 3;
+    const left = i * 2 * 3;
     const right = (i * 2 + 1) * 3;
     positions[left] = -options.width;
     positions[left + 1] = y;
@@ -194,7 +194,6 @@ export function createAuroraRiver(options: AuroraRiverOptions): {
 } {
   const group = new Group();
   group.name = "AuroraRiver";
-  group.userData.followsPlayer = true;
   const layers = options.layers.map((layer) => {
     const created = createAuroraLayer(layer);
     group.add(created.mesh);

@@ -1,6 +1,10 @@
 import { Group, Mesh, SphereGeometry, Vector3 } from "three";
 import { CelMaterial } from "../rendering/cel/celMaterial.js";
-import { attachOutline, createOutlineMesh, type OutlineHandle } from "../rendering/cel/outlineMesh.js";
+import {
+  attachOutline,
+  createOutlineMesh,
+  type OutlineHandle,
+} from "../rendering/cel/outlineMesh.js";
 
 export interface ObstaclesOptions {
   /** Initial world-space positions ahead of the player. */
@@ -14,9 +18,8 @@ export interface ObstaclesOptions {
  * Ring of obstacles at fixed world-space offsets AHEAD of the racer. When the
  * racer passes an obstacle, it recycles to a position far ahead.
  *
- * `spheres[i].position` is in world coordinates (used for collision math).
- * The visual mesh is parented to the rebase worldRoot so it appears at the
- * correct render-space position.
+ * `spheres[i].position` and their visual meshes are in world coordinates.
+ * The rebased parent converts those visual positions into render-space.
  */
 export interface ObstacleSphere {
   position: Vector3;
@@ -28,15 +31,21 @@ export interface ObstaclesField {
   spheres: ObstacleSphere[];
   outlines: OutlineHandle[];
   meshes: Mesh[];
-  update: (deltaSeconds: number, playerPosition: Vector3, worldOrigin: Vector3) => void;
+  update: (deltaSeconds: number, playerPosition: Vector3) => void;
+  reset: () => void;
 }
 
-export function createObstaclesField(options: ObstaclesOptions): ObstaclesField {
+export function createObstaclesField(
+  options: ObstaclesOptions,
+): ObstaclesField {
   const group = new Group();
   group.name = "Obstacles";
   const spheres: ObstacleSphere[] = [];
   const outlines: OutlineHandle[] = [];
   const meshes: Mesh[] = [];
+  const startingPositions = options.initialPositions.map((position) =>
+    position.clone(),
+  );
 
   for (const initial of options.initialPositions) {
     const radius = 1.0;
@@ -68,7 +77,7 @@ export function createObstaclesField(options: ObstaclesOptions): ObstaclesField 
     spheres,
     outlines,
     meshes,
-    update(deltaSeconds: number, playerPosition: Vector3, worldOrigin: Vector3) {
+    update(deltaSeconds: number, playerPosition: Vector3) {
       const t = performance.now() * 0.001;
 
       // Recycle passed obstacles; respawn them ahead in world coords.
@@ -79,18 +88,21 @@ export function createObstaclesField(options: ObstaclesOptions): ObstaclesField 
         }
       }
 
-      // Sync visuals: position the mesh in render-space (world - origin)
-      // and apply decorative rotation.
+      // Sync world-space visuals; their parent applies the rebase offset.
       for (let i = 0; i < meshes.length; i += 1) {
         const mesh = meshes[i]!;
         const s = spheres[i]!;
-        mesh.position.set(
-          s.position.x - worldOrigin.x,
-          s.position.y,
-          s.position.z - worldOrigin.z,
-        );
+        mesh.position.set(s.position.x, s.position.y, s.position.z);
         mesh.rotation.y += deltaSeconds * 0.3;
         mesh.rotation.x = Math.sin(t + i) * 0.1;
+      }
+    },
+    reset() {
+      for (let i = 0; i < spheres.length; i += 1) {
+        const sphere = spheres[i]!;
+        const start = startingPositions[i]!;
+        sphere.position.copy(start);
+        meshes[i]!.position.copy(start);
       }
     },
   };

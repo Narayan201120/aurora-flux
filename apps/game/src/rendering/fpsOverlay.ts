@@ -10,6 +10,9 @@ export interface FpsOverlayModel {
   boostActive: boolean;
   boostCooldown: number;
   drafting: number;
+  lap: number;
+  totalLaps: number;
+  wrongWay: boolean;
 }
 
 const formatNumber = (value: number, digits = 0): string => {
@@ -64,6 +67,10 @@ export class FpsOverlay {
       `<span class="value">${model.renderer}</span></div>`,
       '<div class="row"><span class="label">Speed</span>',
       `<span class="value">${formatNumber(model.speed, 1)} m/s</span></div>`,
+      '<div class="row"><span class="label">Lap</span>',
+      `<span class="value">${model.lap}/${model.totalLaps}</span></div>`,
+      '<div class="row"><span class="label">Route</span>',
+      `<span class="value" style="color:${model.wrongWay ? "#ff8a8a" : "#b6f2c8"}">${model.wrongWay ? "WRONG WAY" : "CLEAR"}</span></div>`,
       '<div class="row"><span class="label">Drift</span>',
       `<span class="value">${bar(model.driftCharge)} ${formatNumber(model.driftCharge, 2)}</span></div>`,
       '<div class="row"><span class="label">Boost</span>',

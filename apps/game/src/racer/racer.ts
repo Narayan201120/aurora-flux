@@ -46,6 +46,7 @@ export interface RacerConfig {
   driftLateralGrip: number;
   draftLateralGrip: number;
   steerSpeed: number;
+  lateralSteerSpeed: number;
   maxSteerAngle: number;
   rollFromSteer: number;
   pitchFromThrottle: number;
@@ -85,6 +86,7 @@ export const DEFAULT_RACER_CONFIG: RacerConfig = {
   driftLateralGrip: 1.5,
   draftLateralGrip: 9.0,
   steerSpeed: 2.6,
+  lateralSteerSpeed: 18,
   maxSteerAngle: 0.55,
   rollFromSteer: 0.32,
   pitchFromThrottle: 0.12,
@@ -144,6 +146,30 @@ export class Racer {
     private readonly config: RacerConfig = DEFAULT_RACER_CONFIG,
   ) {}
 
+  reset(position = new Vector3(), heading = 0): void {
+    this.position.copy(position);
+    this.velocity.set(0, 0, 0);
+    this.heading = heading;
+    this.steerAngle = 0;
+    this.rideOffset = 0;
+    this.rideVelocity = 0;
+    this.speed = 0;
+    this.drifting = false;
+    this.driftCharge = 0;
+    this.boostEnergy = 0;
+    this.boostActive = false;
+    this.boostTimer = 0;
+    this.boostCooldownTimer = 0;
+    this.recoveryTimer = 0;
+    this.inputDampTimer = 0;
+    this.lastImpact = null;
+    this.drafting.active = false;
+    this.drafting.intensity = 0;
+    this.drafting.bonusSpeed = 0;
+    this.root.position.copy(this.position);
+    this.root.rotation.set(0, heading, 0);
+  }
+
   snapshot(): RacerSnapshot {
     return {
       position: this.position,
@@ -161,13 +187,10 @@ export class Racer {
     };
   }
 
-  applyImpact(obstacle: ObstacleSphere, worldOrigin: Vector3): void {
+  applyImpact(obstacle: ObstacleSphere): void {
     const cfg = this.config;
-    // Convert obstacle to world coords for collision check.
-    const worldOx = obstacle.position.x + worldOrigin.x;
-    const worldOz = obstacle.position.z + worldOrigin.z;
-    const dx = this.position.x - worldOx;
-    const dz = this.position.z - worldOz;
+    const dx = this.position.x - obstacle.position.x;
+    const dz = this.position.z - obstacle.position.z;
     const dist = Math.hypot(dx, dz);
     if (dist >= obstacle.radius) return;
 
@@ -198,10 +221,17 @@ export class Racer {
 
     this.recoveryTimer = cfg.impactRecoverySeconds;
     this.inputDampTimer = cfg.impactRecoverySeconds;
-    this.lastImpact = { magnitude: cfg.impactBounce, recoverySeconds: cfg.impactRecoverySeconds };
+    this.lastImpact = {
+      magnitude: cfg.impactBounce,
+      recoverySeconds: cfg.impactRecoverySeconds,
+    };
   }
 
-  applyInput(input: RacerInput, deltaSeconds: number, draftTarget?: { position: Vector3; velocity: Vector3 }): void {
+  applyInput(
+    input: RacerInput,
+    deltaSeconds: number,
+    draftTarget?: { position: Vector3; velocity: Vector3 },
+  ): void {
     const cfg = this.config;
 
     // Recovery tick.
@@ -218,39 +248,65 @@ export class Racer {
     const dampedSteer = clamp(input.steer * inputDamp, -1, 1);
 
     // Steering.
-    const speedFactor = Math.min(1, Math.abs(this.speed) / cfg.maxForwardSpeed + 0.25);
+    const speedFactor = Math.min(
+      1,
+      Math.abs(this.speed) / cfg.maxForwardSpeed + 0.25,
+    );
     const targetSteer = dampedSteer * cfg.maxSteerAngle;
-    this.steerAngle += (targetSteer - this.steerAngle) * Math.min(1, cfg.steerSpeed * deltaSeconds * speedFactor);
-    this.heading += this.steerAngle * deltaSeconds * (this.speed > 0.1 ? 2.6 : 1.6);
+    this.steerAngle +=
+      (targetSteer - this.steerAngle) *
+      Math.min(1, cfg.steerSpeed * deltaSeconds * speedFactor);
+    this.heading +=
+      this.steerAngle * deltaSeconds * (this.speed > 0.1 ? 2.6 : 1.6);
 
     const forwardX = Math.sin(this.heading);
     const forwardZ = Math.cos(this.heading);
 
     // Drift detection: handbrake held while steering AND moving fast enough.
-    const wantsDrift = input.handbrake && Math.abs(dampedSteer) > 0.2 && Math.abs(this.speed) > 8;
+    const wasDrifting = this.drifting;
+    const wantsDrift =
+      input.handbrake &&
+      Math.abs(dampedSteer) > 0.2 &&
+      Math.abs(this.speed) > 8;
     this.drifting = wantsDrift;
+    const driftReleased = wasDrifting && !this.drifting;
+    const driftChargeAtRelease = this.driftCharge;
 
     // Drift charge.
     if (this.drifting) {
-      this.driftCharge = clamp(this.driftCharge + cfg.driftChargeRate * deltaSeconds, 0, 1);
+      this.driftCharge = clamp(
+        this.driftCharge + cfg.driftChargeRate * deltaSeconds,
+        0,
+        1,
+      );
     } else {
-      this.driftCharge = clamp(this.driftCharge - cfg.driftChargeDecay * deltaSeconds, 0, 1);
+      this.driftCharge = clamp(
+        this.driftCharge - cfg.driftChargeDecay * deltaSeconds,
+        0,
+        1,
+      );
     }
 
     // Boost trigger.
     if (this.boostCooldownTimer > 0) {
-      this.boostCooldownTimer = Math.max(0, this.boostCooldownTimer - deltaSeconds);
+      this.boostCooldownTimer = Math.max(
+        0,
+        this.boostCooldownTimer - deltaSeconds,
+      );
     }
 
+    // Releasing a charged drift also fires the boost. R/E remain available
+    // for manual activation, including when the keyboard drops a chorded key.
     if (
-      input.boost &&
+      (input.boost ||
+        (driftReleased && driftChargeAtRelease >= cfg.driftChargeMinToBoost)) &&
       !this.boostActive &&
       this.boostCooldownTimer === 0 &&
       this.driftCharge >= cfg.driftChargeMinToBoost
     ) {
       this.boostActive = true;
       this.boostTimer = cfg.boostDuration;
-      this.boostEnergy = this.driftCharge;
+      this.boostEnergy = Math.max(this.driftCharge, driftChargeAtRelease);
       this.driftCharge = 0;
       this.boostCooldownTimer = cfg.boostCooldown;
     }
@@ -275,18 +331,30 @@ export class Racer {
     if (input.brake) {
       this.speed = approachZero(this.speed, cfg.brakeStrength * deltaSeconds);
     } else if (this.boostActive) {
-      this.speed += cfg.thrust * cfg.boostThrustMultiplier * Math.max(0, dampedThrottle) * deltaSeconds;
+      this.speed +=
+        cfg.thrust *
+        cfg.boostThrustMultiplier *
+        Math.max(0, dampedThrottle) *
+        deltaSeconds;
     } else if (dampedThrottle > 0) {
       this.speed += cfg.thrust * dampedThrottle * deltaSeconds;
     } else if (dampedThrottle < 0) {
       this.speed += cfg.reverseThrust * dampedThrottle * deltaSeconds;
     } else {
-      this.speed = approachZero(this.speed, cfg.drag * deltaSeconds * 4);
+      // No throttle input: idle drag with extra drafting drag so the racer
+      // settles to 0 instead of cruising on drafting bonus alone.
+      const idleDrag = cfg.drag * deltaSeconds * 6;
+      this.speed = approachZero(this.speed, idleDrag);
     }
 
-    // Drafting adds a small bonus speed.
-    if (this.drafting.active) {
-      this.speed += this.drafting.bonusSpeed * deltaSeconds;
+    // Drafting amplifies existing forward thrust; it does NOT add speed on
+    // its own. Only applies while the racer is actively throttling forward.
+    if (this.drafting.active && dampedThrottle > 0) {
+      this.speed +=
+        cfg.draftMaxBonusSpeed *
+        this.drafting.intensity *
+        dampedThrottle *
+        deltaSeconds;
     }
 
     const topSpeed = this.boostActive ? cfg.boostMaxSpeed : cfg.maxForwardSpeed;
@@ -294,11 +362,20 @@ export class Racer {
 
     // Drag.
     const dragMag = cfg.drag * Math.abs(this.speed) * deltaSeconds;
-    this.speed -= Math.sign(this.speed) * Math.min(dragMag, Math.abs(this.speed));
+    this.speed -=
+      Math.sign(this.speed) * Math.min(dragMag, Math.abs(this.speed));
 
     // Velocity vector.
-    const targetVx = forwardX * this.speed;
-    const targetVz = forwardZ * this.speed;
+    // Add a direct lateral component so A/D produces readable arcade movement
+    // instead of relying only on yaw, which the chase camera visually masks.
+    const rightX = forwardZ;
+    const rightZ = -forwardX;
+    const lateralSpeed =
+      dampedSteer *
+      cfg.lateralSteerSpeed *
+      Math.min(1, Math.abs(this.speed) / 12);
+    const targetVx = forwardX * this.speed + rightX * lateralSpeed;
+    const targetVz = forwardZ * this.speed + rightZ * lateralSpeed;
 
     // Lateral grip changes based on state.
     let grip = cfg.lateralGrip;
@@ -311,7 +388,8 @@ export class Racer {
 
     // Ride height spring.
     const rideError = cfg.rideHeight + this.rideOffset - this.position.y;
-    const rideAccel = rideError * cfg.rideSpring - this.rideVelocity * cfg.rideDamping;
+    const rideAccel =
+      rideError * cfg.rideSpring - this.rideVelocity * cfg.rideDamping;
     this.rideVelocity += rideAccel * deltaSeconds;
     this.position.y += this.rideVelocity * deltaSeconds;
     this.rideOffset *= Math.exp(-1.6 * deltaSeconds);
@@ -320,9 +398,12 @@ export class Racer {
     this.position.z += this.velocity.z * deltaSeconds;
 
     // Apply transform.
-    const roll = -this.steerAngle * cfg.rollFromSteer * (this.drifting ? 1.4 : 1);
+    const roll =
+      -this.steerAngle * cfg.rollFromSteer * (this.drifting ? 1.4 : 1);
     const pitch = dampedThrottle * cfg.pitchFromThrottle;
-    const q = new Quaternion().setFromEuler(new Euler(pitch, this.heading, roll));
+    const q = new Quaternion().setFromEuler(
+      new Euler(pitch, this.heading, roll),
+    );
     this.root.position.copy(this.position);
     this.root.quaternion.copy(q);
     void forwardX;
@@ -341,21 +422,34 @@ export class Racer {
     const fwdZ = Math.cos(this.heading);
     const aheadOfTarget = dx * fwdX + dz * fwdZ;
 
-    // Drafting: target is ahead, racer is within range.
-    const inRange = dist < cfg.draftRange && aheadOfTarget < cfg.draftMinCloseDistance;
-    const relSpeed = (target.velocity.z * fwdZ + target.velocity.x * fwdX) - this.speed;
+    // Drafting: target is ahead, racer is within range AND the racer is
+    // moving forward (positive speed). Standing still while close to a
+    // ghost target should NOT grant drafting.
+    const inRange =
+      dist < cfg.draftRange &&
+      aheadOfTarget < cfg.draftMinCloseDistance &&
+      this.speed > 1;
+    const relSpeed =
+      target.velocity.z * fwdZ + target.velocity.x * fwdX - this.speed;
     const eligible = inRange && relSpeed > cfg.draftRequiredRelativeSpeed;
 
     if (eligible) {
       const closeness = 1 - clamp(dist / cfg.draftRange, 0, 1);
-      const intensity = closeness;
-      this.drafting.active = true;
-      this.drafting.intensity = intensity;
-      this.drafting.bonusSpeed = cfg.draftMaxBonusSpeed * intensity;
+      // Ramp up over ~0.6s so drafting does not snap to max immediately.
+      this.drafting.intensity = Math.min(
+        closeness,
+        this.drafting.intensity + deltaSeconds * 1.6,
+      );
+      this.drafting.bonusSpeed =
+        cfg.draftMaxBonusSpeed * this.drafting.intensity;
+      this.drafting.active = this.drafting.intensity > 0.05;
     } else {
-      // Smooth ramp-down.
-      this.drafting.intensity = Math.max(0, this.drafting.intensity - deltaSeconds * 2);
-      this.drafting.bonusSpeed = cfg.draftMaxBonusSpeed * this.drafting.intensity;
+      this.drafting.intensity = Math.max(
+        0,
+        this.drafting.intensity - deltaSeconds * 2,
+      );
+      this.drafting.bonusSpeed =
+        cfg.draftMaxBonusSpeed * this.drafting.intensity;
       this.drafting.active = this.drafting.intensity > 0.05;
     }
     void aheadOfTarget;

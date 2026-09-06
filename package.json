@@ -5,11 +5,14 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
+    "verify:race": "bun run tools/verify-race-flow.ts",
+    "verify:browser": "node tools/capture-screenshots.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
     "prettier": "^3.7.4",
+    "playwright": "^1.55.0",
     "turbo": "^2.10.8",
     "typescript": "5.9.2"
   },

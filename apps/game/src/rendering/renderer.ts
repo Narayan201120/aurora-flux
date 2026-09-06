@@ -8,7 +8,10 @@ import {
 } from "three";
 import { DEFAULT_CONFIG, type QualityConfig } from "../config/config.js";
 
-export function createRenderer(container: HTMLElement, quality: QualityConfig): WebGLRenderer {
+export function createRenderer(
+  container: HTMLElement,
+  quality: QualityConfig,
+): WebGLRenderer {
   const renderer = new WebGLRenderer({
     powerPreference: "high-performance",
     antialias: quality.antialias,
@@ -35,7 +38,9 @@ export function createCamera(container: HTMLElement): PerspectiveCamera {
     DEFAULT_CONFIG.cameraNear,
     DEFAULT_CONFIG.cameraFar,
   );
-  camera.position.set(2.5, 2.6, 6.0);
+  // Start at the chase position (behind and above the racer) so the chase
+  // camera does not need to spring in from a default front-of-racer pose.
+  camera.position.set(0, 3.2, -6.5);
   camera.lookAt(0, 1.1, 0);
   return camera;
 }
