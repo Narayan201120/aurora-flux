@@ -1,6 +1,6 @@
 # Current objective
 
-Milestone: Phase 2 visual uplift, Stage 1 complete
+Milestone: Phase 2 visual uplift, Stage 2 complete
 
 M13 remains complete and verified. Phase 2 is a post-release visual milestone.
 Stage 1 adds the Aurora Ribbon material upgrade, the presentation-only
@@ -8,8 +8,8 @@ VisualState vocabulary, safe normalized audio-reactive sampling, bounded radial
 speed lines and chromatic pulses, and a fixed-capacity instanced FX pool. Race
 physics, handling, AI, checkpoints, and audio output safety remain unchanged.
 
-Next stage: improve procedural nebula depth and deterministic landmark framing
-after the motion effects have a stable screenshot baseline.
+Next stage: finish the safe SensoryBus presentation mapping and rival-specific
+visual trails, then run the final Phase 2 regression and screenshot review.
 
 ## Implemented systems
 
@@ -36,6 +36,8 @@ after the motion effects have a stable screenshot baseline.
 - Final polish pass with transient impact state and release-candidate checks
 - Phase 2 Stage 1 Aurora Ribbon flow, post-process motion feedback, safe audio
   reactive state, and pooled visual FX
+- Phase 2 Stage 2 layered nebula detail, deterministic horizon anchors, and
+  quality-tier landmark fallbacks
 
 ## Verification
 

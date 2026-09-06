@@ -6,6 +6,7 @@ import {
   ShaderMaterial,
   SphereGeometry,
 } from "three";
+import type { QualityTier } from "../config/config.js";
 
 const NEBULA_VERT = /* glsl */ `
 varying vec3 vDirection;
@@ -24,6 +25,7 @@ uniform vec3 uColorA;
 uniform vec3 uColorB;
 uniform vec3 uColorC;
 uniform float uIntensity;
+uniform float uQuality;
 
 varying vec3 vDirection;
 
@@ -55,7 +57,7 @@ float noise(vec3 p) {
 float fbm(vec3 p) {
   float v = 0.0;
   float a = 0.5;
-  for (int i = 0; i < 5; i += 1) {
+  for (int i = 0; i < 4; i += 1) {
     v += a * noise(p);
     p *= 2.02;
     a *= 0.5;
@@ -71,15 +73,21 @@ void main() {
   float n1 = fbm(p);
   vec3 q = dir * 3.2 + vec3(-t * 0.6, t * 0.8, t * 0.3);
   float n2 = fbm(q + 11.7);
+  vec3 r = dir * 7.0 + vec3(t * 1.1, -t * 0.7, t * 0.4);
+  float detail = noise(r) * 0.5 + noise(r * 1.7 + 4.0) * 0.3;
+  detail *= uQuality;
 
-  float cloud = smoothstep(0.42, 0.78, n1);
-  float accent = smoothstep(0.55, 0.82, n2);
+  float cloud = smoothstep(0.38, 0.76, n1 + detail * 0.16);
+  float accent = smoothstep(0.52, 0.8, n2 + detail * 0.12);
+  float horizon = pow(max(1.0 - abs(dir.y), 0.0), 1.4);
+  float veil = smoothstep(0.16, 0.84, cloud * 0.76 + accent * 0.24);
 
   vec3 base = mix(uColorA, uColorB, cloud);
-  base = mix(base, uColorC, accent * 0.7);
-
-  float horizon = pow(max(1.0 - abs(dir.y), 0.0), 1.4);
-  base *= mix(0.4, 1.0, horizon);
+  base = mix(base, uColorC, accent * 0.78);
+  base += vec3(0.08, 0.14, 0.2) * detail * uQuality;
+  base *= mix(0.56, 1.0, veil);
+  base *= mix(0.46, 1.0, horizon);
+  base *= mix(0.74, 1.0, smoothstep(0.12, 0.94, abs(dir.y)) * 0.35);
 
   base *= uIntensity;
   gl_FragColor = vec4(base, 1.0);
@@ -97,6 +105,7 @@ export interface NebulaOptions {
 export function createNebulaDome(options: NebulaOptions): {
   mesh: Mesh;
   update: (time: number) => void;
+  setQuality: (tier: QualityTier) => void;
 } {
   const geometry = new SphereGeometry(options.radius, 32, 24);
   const material = new ShaderMaterial({
@@ -110,6 +119,7 @@ export function createNebulaDome(options: NebulaOptions): {
       uColorB: { value: new Color(options.colorB) },
       uColorC: { value: new Color(options.colorC) },
       uIntensity: { value: options.intensity },
+      uQuality: { value: 1 },
     },
   });
   const mesh = new Mesh(geometry, material);
@@ -119,6 +129,10 @@ export function createNebulaDome(options: NebulaOptions): {
     update(time: number) {
       const u = material.uniforms.uTime;
       if (u) u.value = time;
+    },
+    setQuality(tier: QualityTier) {
+      const u = material.uniforms.uQuality;
+      if (u) u.value = tier === "high" ? 1 : tier === "medium" ? 0.7 : 0.42;
     },
   };
 }
@@ -130,9 +144,14 @@ export interface NebulaFieldOptions {
 export function createNebulaField(options: NebulaFieldOptions): {
   group: Group;
   update: (time: number) => void;
+  setQuality: (tier: QualityTier) => void;
 } {
   const group = new Group();
-  const domes: { mesh: Mesh; update: (time: number) => void }[] = [];
+  const domes: {
+    mesh: Mesh;
+    update: (time: number) => void;
+    setQuality: (tier: QualityTier) => void;
+  }[] = [];
   for (const dome of options.domes) {
     const created = createNebulaDome(dome);
     group.add(created.mesh);
@@ -142,6 +161,9 @@ export function createNebulaField(options: NebulaFieldOptions): {
     group,
     update(time: number) {
       for (const dome of domes) dome.update(time);
+    },
+    setQuality(tier: QualityTier) {
+      for (const dome of domes) dome.setQuality(tier);
     },
   };
 }

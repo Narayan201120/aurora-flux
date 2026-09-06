@@ -63,6 +63,8 @@ export function createEnvironment(options: EnvironmentOptions): Environment {
     },
     setQuality(tier: QualityTier) {
       starfield.setQuality(tier);
+      nebula.setQuality(tier);
+      landmarks.setQuality(tier);
     },
   };
 }

@@ -1,5 +1,6 @@
 import {
   AdditiveBlending,
+  BoxGeometry,
   Color,
   ConeGeometry,
   Group,
@@ -12,10 +13,12 @@ import {
   SphereGeometry,
   TorusGeometry,
 } from "three";
+import type { QualityTier } from "../config/config.js";
 
 export interface LandmarkSystem {
   group: Group;
   update: (time: number) => void;
+  setQuality: (tier: QualityTier) => void;
 }
 
 const CRYSTAL_COLORS = [
@@ -76,6 +79,58 @@ export function createLandmarkSystem(): LandmarkSystem {
   archB.rotation.z = 0.2;
   group.add(archB);
 
+  // Three large, deterministic horizon anchors establish scale without
+  // turning the world into an unbounded decoration field.
+  const orbitGeometry = new TorusGeometry(18, 0.28, 10, 48);
+  const orbitMeshes: Mesh[] = [];
+  const orbitMaterials: MeshBasicMaterial[] = [];
+  for (const [x, y, z, rotationZ, color] of [
+    [38, 23, 112, 0.18, "#72f8ff"],
+    [-56, 17, 198, -0.3, "#a984ff"],
+    [12, 30, 292, 0.42, "#ff78ce"],
+  ] as const) {
+    const material = new MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.38,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+    const orbit = new Mesh(orbitGeometry, material);
+    orbit.name = "FracturedOrbitAnchor";
+    orbit.position.set(x, y, z);
+    orbit.rotation.set(0.52, -0.28, rotationZ);
+    orbit.scale.set(1.2, 0.72, 1);
+    group.add(orbit);
+    orbitMeshes.push(orbit);
+    orbitMaterials.push(material);
+  }
+
+  const collectorGeometry = new BoxGeometry(0.32, 9, 3.8);
+  const collectorMaterial = new MeshBasicMaterial({
+    color: "#9affe0",
+    transparent: true,
+    opacity: 0.36,
+    blending: AdditiveBlending,
+    depthWrite: false,
+  });
+  const collector = new InstancedMesh(collectorGeometry, collectorMaterial, 8);
+  const collectorTransform = new Object3D();
+  for (let index = 0; index < collector.count; index += 1) {
+    collectorTransform.position.set(
+      index % 2 === 0 ? -34 : 34,
+      7 + (index % 3) * 3.5,
+      148 + Math.floor(index / 2) * 18,
+    );
+    collectorTransform.rotation.set(0.08 * index, 0.16 * index, 0.2);
+    collectorTransform.scale.set(1 + (index % 2) * 0.4, 1, 1);
+    collectorTransform.updateMatrix();
+    collector.setMatrixAt(index, collectorTransform.matrix);
+  }
+  collector.instanceMatrix.needsUpdate = true;
+  collector.name = "CyberneticCollectorInstances";
+  group.add(collector);
+
   const gate = createCelestialGate();
   group.add(gate);
 
@@ -130,6 +185,23 @@ export function createLandmarkSystem(): LandmarkSystem {
       whaleSouth.rotation.z = Math.cos(time * 0.09) * 0.12;
       whaleSouth.rotation.y = Math.sin(time * 0.09) > 0 ? 0.12 : Math.PI - 0.12;
       gate.rotation.y = Math.sin(time * 0.16) * 0.08;
+      for (let index = 0; index < orbitMeshes.length; index += 1) {
+        const orbit = orbitMeshes[index]!;
+        orbit.rotation.y += 0.0015 + index * 0.0006;
+        orbit.rotation.z += Math.sin(time * 0.4 + index) * 0.0004;
+        orbitMaterials[index]!.opacity =
+          0.3 + Math.sin(time * 1.3 + index * 1.7) * 0.07;
+      }
+    },
+    setQuality(tier: QualityTier) {
+      const orbitCount = tier === "high" ? orbitMeshes.length : tier === "medium" ? 2 : 1;
+      for (let index = 0; index < orbitMeshes.length; index += 1) {
+        orbitMeshes[index]!.visible = index < orbitCount;
+      }
+      collector.visible = tier !== "low";
+      for (let index = 0; index < moonFragments.length; index += 1) {
+        moonFragments[index]!.visible = tier === "high" || index < 4;
+      }
     },
   };
 }
