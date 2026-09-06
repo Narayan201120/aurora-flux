@@ -41,6 +41,29 @@ await page.goto(baseUrl.toString(), {
 console.log("browser: dom ready");
 await page.waitForSelector("[data-hud=lap]");
 console.log("browser: hud ready");
+const requiredHudSelectors = [
+  "[data-hud=lap]",
+  "[data-hud=timer]",
+  "[data-hud=position]",
+  "[data-hud=boost-label]",
+  "[data-hud=hazard]",
+  "[data-hud=minimap]",
+];
+for (const selector of requiredHudSelectors) {
+  if ((await page.locator(selector).count()) !== 1) {
+    errors.push(`Required HUD field is missing: ${selector}`);
+  }
+}
+const minimapHasPixels = await page.evaluate(() => {
+  const canvas = document.querySelector("[data-hud=minimap]");
+  if (!(canvas instanceof HTMLCanvasElement)) return false;
+  const context = canvas.getContext("2d");
+  if (!context) return false;
+  return context
+    .getImageData(0, 0, canvas.width, canvas.height)
+    .data.some((value) => value !== 0);
+});
+if (!minimapHasPixels) errors.push("Minimap did not render route pixels");
 await page.screenshot({
   path: join(outputDirectory, "01-countdown.png"),
   fullPage: true,
@@ -112,6 +135,9 @@ const raceResult = await page.evaluate(() =>
 if (raceResult?.phase !== "finished" || raceResult.lapsCompleted !== 3) {
   errors.push(`Race did not finish in browser: ${JSON.stringify(raceResult)}`);
 }
+if (!(await page.locator("#results-screen").isVisible())) {
+  errors.push("Results screen did not become visible after the finish");
+}
 await page.click("#restart-race");
 await page.waitForTimeout(120);
 const restartResult = await page.evaluate(() =>
@@ -124,6 +150,32 @@ if (restartResult?.phase !== "countdown" || restartResult.lapsCompleted !== 0) {
 }
 await page.screenshot({
   path: join(outputDirectory, "07-restart-countdown.png"),
+  fullPage: true,
+});
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(160);
+const mobileHudFits = await page.evaluate(() => {
+  const selectors = [
+    ".hud-brand",
+    ".hud-lap-panel",
+    ".hud-timer",
+    ".hud-position",
+    ".hud-hazard",
+    ".hud-map",
+    ".hud-speed",
+    ".hud-boost",
+  ];
+  return selectors.every((selector) => {
+    const element = document.querySelector(selector);
+    if (!(element instanceof HTMLElement)) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.left >= 0 && rect.right <= window.innerWidth + 1;
+  });
+});
+if (!mobileHudFits)
+  errors.push("Responsive HUD overflowed the mobile viewport");
+await page.screenshot({
+  path: join(outputDirectory, "08-mobile-hud.png"),
   fullPage: true,
 });
 await browser.close();

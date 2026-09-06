@@ -48,18 +48,18 @@ export class RaceHud {
     this.onRestart = onRestart;
     this.root.innerHTML = `
       <div class="hud-brand"><span class="brand-mark">✦</span><span>Aurora Flux</span><small>NEBULA CIRCUIT / 01</small></div>
-      <div class="hud-lap-panel">
+      <div class="hud-lap-panel" aria-label="Current lap">
         <span class="hud-kicker">Lap</span>
         <strong data-hud="lap">01 <i>/ 03</i></strong>
         <div class="lap-track"><span data-hud="lap-fill"></span></div>
       </div>
-      <div class="hud-timer"><span class="hud-kicker">Race time</span><strong data-hud="timer">00:00.00</strong></div>
-      <div class="hud-position"><strong data-hud="position">04</strong><span><b data-hud="position-label">of 04</b><small>position</small></span></div>
-      <div class="hud-hazard"><span class="hazard-dot"></span><div><span class="hud-kicker">Course signal</span><strong data-hud="hazard">SCANNING</strong><small data-hud="distance">clear ahead</small></div></div>
-      <div class="hud-map"><span class="hud-kicker">Circuit trace</span><canvas data-hud="minimap" width="240" height="132"></canvas></div>
-      <div class="hud-speed"><span data-hud="speed">000</span><small>km/h</small><i data-hud="speed-needle"></i></div>
-      <div class="hud-boost"><div class="boost-heading"><span>Flux charge</span><strong data-hud="boost-label">BUILDING</strong></div><div class="boost-track"><span data-hud="boost-fill"></span></div><small>Shift + steer to drift / release to boost</small></div>
-      <div class="hud-controls"><kbd>WASD</kbd> fly <kbd>Shift</kbd> drift <kbd>R</kbd> boost</div>
+      <div class="hud-timer" aria-label="Race time"><span class="hud-kicker">Race time</span><strong data-hud="timer">00:00.00</strong></div>
+      <div class="hud-position" aria-label="Race position"><strong data-hud="position">04</strong><span><b data-hud="position-label">of 04</b><small>position</small></span></div>
+      <div class="hud-hazard" aria-live="assertive" aria-label="Course hazard"><span class="hazard-dot"></span><div><span class="hud-kicker">Course signal</span><strong data-hud="hazard">SCANNING</strong><small data-hud="distance">clear ahead</small></div></div>
+      <div class="hud-map" aria-label="Circuit minimap"><span class="hud-kicker">Circuit trace</span><canvas data-hud="minimap" width="240" height="132"></canvas></div>
+      <div class="hud-speed" aria-label="Current speed"><span data-hud="speed">000</span><small>km/h</small><i data-hud="speed-needle"></i></div>
+      <div class="hud-boost" aria-label="Flux boost charge"><div class="boost-heading"><span>Flux charge</span><strong data-hud="boost-label">BUILDING</strong></div><div class="boost-track"><span data-hud="boost-fill"></span></div><small>Shift + steer to drift / release to boost</small></div>
+      <div class="hud-controls" aria-label="Keyboard controls"><kbd>WASD</kbd> fly <kbd>Shift</kbd> drift <kbd>R</kbd> boost</div>
     `;
     this.lap = requiredElement(this.root, "[data-hud=lap]");
     this.timer = requiredElement(this.root, "[data-hud=timer]");

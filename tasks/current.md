@@ -1,12 +1,11 @@
 # Current objective
 
-Milestone: M10 user interface
+Milestone: M11 audio
 
-M9 is complete. Aurora Flux now runs a complete procedural arcade race loop
-with expressive procedural rider pilots that lean, drift, boost, react to
-impacts, idle naturally, and celebrate the finish. The player starts in a
-three-second countdown, races a three-lap circuit, and reaches a restartable
-results screen.
+M10 is complete. Aurora Flux now runs a complete procedural arcade race loop
+with a readable desktop and mobile presentation layer. Speed, lap, position,
+boost, hazards, minimap, countdown, results, and restart state are all visible
+without debug tooling.
 
 ## Implemented systems
 
@@ -21,6 +20,7 @@ results screen.
 - Instanced crystal forests, celestial arches, eclipse gate, shattered moon
   fragments, star whales, and a celestial leviathan
 - Race HUD with speed, lap, timer, position, boost charge, hazard channel, and minimap
+- Responsive HUD layout with accessibility labels and mobile overflow checks
 - Countdown, finish results, and restart flow
 - Web Audio synthesis for engine, countdown, drift, boost, impact, hazard, and finish cues
 - Adaptive pixel-ratio quality scaling for constrained hardware
