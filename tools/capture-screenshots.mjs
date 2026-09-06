@@ -105,6 +105,19 @@ const speedText = await page.locator("[data-hud=speed]").textContent();
 const readyState = await page.evaluate(() =>
   window.__auroraFluxTest?.snapshot(),
 );
+const performanceSnapshot = readyState?.performance;
+if (
+  !performanceSnapshot ||
+  !Number.isFinite(performanceSnapshot.cpuMs) ||
+  !Number.isFinite(performanceSnapshot.renderMs) ||
+  performanceSnapshot.geometries > 200 ||
+  performanceSnapshot.textures > 32 ||
+  performanceSnapshot.drawCalls > 80
+) {
+  errors.push(
+    `Performance telemetry exceeded the bounded scene budget: ${JSON.stringify(performanceSnapshot)}`,
+  );
+}
 if (!lapText?.includes("/ 03") || readyState?.phase === "countdown") {
   errors.push(
     `HUD did not reach the active race state: lap=${lapText ?? "missing"}, speed=${speedText ?? "missing"}, state=${JSON.stringify(readyState)}`,

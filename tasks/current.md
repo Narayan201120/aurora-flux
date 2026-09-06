@@ -1,11 +1,11 @@
 # Current objective
 
-Milestone: M12 performance pass
+Milestone: M13 polish pass
 
-M11 is complete. Aurora Flux now runs a complete procedural arcade race loop
-with a synthesized sonic identity: engine and ambient channels, countdown and
-finish cues, drift and boost feedback, impact and hazard alerts, and dynamic
-mixing that follows race state.
+M12 is complete. Aurora Flux now runs a complete procedural arcade race loop
+with adaptive quality tiers, bounded starfield particle scaling, corrected FPS
+sampling, and runtime CPU/GPU/draw/memory telemetry. The debug overlay and
+browser harness can now prove scene budgets without affecting the default HUD.
 
 ## Implemented systems
 
@@ -25,6 +25,8 @@ mixing that follows race state.
 - Web Audio synthesis for engine, countdown, drift, boost, impact, hazard, and finish cues
 - Audio graph unlock diagnostics and runtime event verification
 - Adaptive pixel-ratio quality scaling for constrained hardware
+- Adaptive starfield particle scaling with low/medium/high tiers
+- CPU, GPU, draw-call, triangle, geometry, and texture telemetry
 - Playwright browser harness with startup, movement, three-lap finish, and restart captures
 
 ## Verification

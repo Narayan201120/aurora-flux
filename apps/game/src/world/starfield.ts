@@ -7,6 +7,7 @@ import {
   Points,
   ShaderMaterial,
 } from "three";
+import type { QualityTier } from "../config/config.js";
 import { SeededRng } from "./seededRng.js";
 
 const STAR_VERT = /* glsl */ `
@@ -57,7 +58,10 @@ export interface StarLayerOptions {
   dimChance: number;
 }
 
-export function createStarLayer(options: StarLayerOptions, pixelRatio: number): Points {
+export function createStarLayer(
+  options: StarLayerOptions,
+  pixelRatio: number,
+): Points {
   const rng = new SeededRng(options.seed);
   const positions = new Float32Array(options.count * 3);
   const sizes = new Float32Array(options.count);
@@ -118,9 +122,10 @@ export interface StarfieldOptions {
 export function createStarfield(options: StarfieldOptions): {
   group: Group;
   update: (time: number) => void;
+  setQuality: (tier: QualityTier) => void;
 } {
   const group = new Group();
-  const layers: { material: ShaderMaterial }[] = [];
+  const layers: { points: Points; material: ShaderMaterial }[] = [];
   const layerSpecs: StarLayerOptions[] = [
     {
       count: 1400,
@@ -128,7 +133,7 @@ export function createStarfield(options: StarfieldOptions): {
       outerRadius: 1500,
       sizeMin: 0.4,
       sizeMax: 1.0,
-      seed: 0xA1F1,
+      seed: 0xa1f1,
       colorTint: "#bcd4ff",
       dimChance: 0.6,
     },
@@ -138,7 +143,7 @@ export function createStarfield(options: StarfieldOptions): {
       outerRadius: 1300,
       sizeMin: 1.0,
       sizeMax: 2.4,
-      seed: 0xB22E,
+      seed: 0xb22e,
       colorTint: "#e9f0ff",
       dimChance: 0.4,
     },
@@ -148,7 +153,7 @@ export function createStarfield(options: StarfieldOptions): {
       outerRadius: 1200,
       sizeMin: 2.0,
       sizeMax: 4.0,
-      seed: 0xC3D4,
+      seed: 0xc3d4,
       colorTint: "#fff3c2",
       dimChance: 0.3,
     },
@@ -157,7 +162,7 @@ export function createStarfield(options: StarfieldOptions): {
   for (const spec of layerSpecs) {
     const layer = createStarLayer(spec, options.pixelRatio);
     group.add(layer);
-    layers.push({ material: layer.material as ShaderMaterial });
+    layers.push({ points: layer, material: layer.material as ShaderMaterial });
   }
 
   return {
@@ -166,6 +171,12 @@ export function createStarfield(options: StarfieldOptions): {
       for (const layer of layers) {
         const u = layer.material.uniforms.uTime;
         if (u) u.value = time;
+      }
+    },
+    setQuality(tier: QualityTier) {
+      const visibleLayers = tier === "low" ? 1 : tier === "medium" ? 2 : 3;
+      for (let index = 0; index < layers.length; index += 1) {
+        layers[index]!.points.visible = index < visibleLayers;
       }
     },
   };

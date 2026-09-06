@@ -1,4 +1,5 @@
 import { Group } from "three";
+import type { QualityTier } from "../config/config.js";
 import { createNebulaField, type NebulaFieldOptions } from "../world/nebula.js";
 import {
   createPlanetSystem,
@@ -27,6 +28,7 @@ export interface Environment {
   flow: FlowField;
   landmarks: LandmarkSystem;
   update: (deltaSeconds: number, time: number) => void;
+  setQuality: (tier: QualityTier) => void;
 }
 
 export function createEnvironment(options: EnvironmentOptions): Environment {
@@ -58,6 +60,9 @@ export function createEnvironment(options: EnvironmentOptions): Environment {
       nebula.update(time);
       aurora.update(time, flow);
       landmarks.update(time);
+    },
+    setQuality(tier: QualityTier) {
+      starfield.setQuality(tier);
     },
   };
 }

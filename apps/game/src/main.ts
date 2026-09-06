@@ -4,6 +4,10 @@ import { AdaptiveQuality } from "./core/adaptiveQuality.js";
 import { GameLoop } from "./core/gameLoop.js";
 import { FpsMeter } from "./core/fpsMeter.js";
 import {
+  PerformanceMonitor,
+  type PerformanceSnapshot,
+} from "./core/performanceMonitor.js";
+import {
   DEFAULT_CONFIG,
   presetForTier,
   type QualityTier,
@@ -51,6 +55,7 @@ interface ApplicationState {
   hud: RaceHud;
   status: RaceStatusOverlay;
   meter: FpsMeter;
+  telemetry: PerformanceMonitor;
   quality: AdaptiveQuality;
   worldRoot: Group;
   environment: Environment;
@@ -78,6 +83,7 @@ interface BrowserTestApi {
     lapsCompleted: number;
     nextCheckpoint: number;
     audio: AudioSnapshot;
+    performance: PerformanceSnapshot;
   };
 }
 
@@ -254,7 +260,12 @@ function bootstrap(): void {
   if (!new URLSearchParams(window.location.search).has("debug")) overlay.hide();
   const status = new RaceStatusOverlay(raceStatusRoot);
   const meter = new FpsMeter();
-  const quality = new AdaptiveQuality(renderer, tierFor(renderer));
+  const telemetry = new PerformanceMonitor();
+  const quality = new AdaptiveQuality(
+    renderer,
+    tierFor(renderer),
+    environment.setQuality,
+  );
   const race = new RaceState();
   const audio = new AudioSystem();
   let timeSeconds = 0;
@@ -290,6 +301,7 @@ function bootstrap(): void {
         lapsCompleted: checkpoints.state.lapsCompleted,
         nextCheckpoint: checkpoints.state.nextIndex,
         audio: audio.snapshot(),
+        performance: telemetry.snapshot(),
       }),
     };
   }
@@ -298,6 +310,7 @@ function bootstrap(): void {
   const origin = new Vector3();
   const loop = new GameLoop({
     onUpdate: (deltaSeconds: number) => {
+      const cpuStart = performance.now();
       timeSeconds += deltaSeconds;
       const priorRace = race.snapshot();
       const playerDistance =
@@ -416,8 +429,13 @@ function bootstrap(): void {
       const inRecovery = racer.lastImpact !== null && racer.recoveryTimer > 0;
       if (inRecovery && !lastImpactFlag) chase.triggerShake(0.25, 0.35);
       lastImpactFlag = inRecovery;
+      telemetry.recordCpu(performance.now() - cpuStart);
     },
-    onRender: () => post.render(scene, camera),
+    onRender: () => {
+      const renderStart = performance.now();
+      post.render(scene, camera);
+      telemetry.recordRender(performance.now() - renderStart, renderer.info);
+    },
   });
 
   const state: ApplicationState = {
@@ -427,6 +445,7 @@ function bootstrap(): void {
     hud,
     status,
     meter,
+    telemetry,
     quality,
     worldRoot,
     environment,
@@ -495,6 +514,7 @@ function startOverlayUpdates(state: ApplicationState): void {
   window.setInterval(() => {
     if (!state.loop.isRunning) return;
     const raceSnapshot = state.race.snapshot();
+    const performanceSnapshot = state.telemetry.snapshot();
     state.fps.render({
       fps: state.meter.current.fps,
       frameMs: state.meter.current.frameMs,
@@ -510,6 +530,10 @@ function startOverlayUpdates(state: ApplicationState): void {
       lap: raceSnapshot.lap,
       totalLaps: raceSnapshot.totalLaps,
       wrongWay: raceSnapshot.wrongWay,
+      cpuMs: performanceSnapshot.cpuMs,
+      renderMs: performanceSnapshot.renderMs,
+      geometries: performanceSnapshot.geometries,
+      textures: performanceSnapshot.textures,
     });
   }, 250);
 }

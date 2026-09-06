@@ -6,6 +6,7 @@ import {
 import { calculatePosition } from "../apps/game/src/racing/position.ts";
 import { RaceState } from "../apps/game/src/racing/raceState.ts";
 import { createTrackSystem } from "../apps/game/src/racing/track.ts";
+import { FpsMeter } from "../apps/game/src/core/fpsMeter.ts";
 import {
   HAZARD_DEFINITIONS,
   HAZARD_WARNING_DISTANCE,
@@ -23,6 +24,13 @@ const hazards = createHazardSystem(trackA);
 const landmarks = createLandmarkSystem();
 const viewport = trackA.sample(0).position.clone().set(1280, 720, 1);
 const rider = createRacerMesh({ viewport }).rider;
+const meter = new FpsMeter(100);
+meter.update(40);
+meter.update(40);
+const meterSample = meter.update(40);
+if (!meterSample || meterSample.frames !== 3 || meterSample.elapsedMs !== 120) {
+  throw new Error("FPS meter did not preserve its completed sample");
+}
 const neutralHazards = {
   warnings: [],
   effect: {

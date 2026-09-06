@@ -10,6 +10,10 @@ export interface FpsOverlayModel {
   boostActive: boolean;
   boostCooldown: number;
   drafting: number;
+  cpuMs: number;
+  renderMs: number;
+  geometries: number;
+  textures: number;
   lap: number;
   totalLaps: number;
   wrongWay: boolean;
@@ -57,10 +61,16 @@ export class FpsOverlay {
       `<span class="${fpsClass(model.fps)}">${formatNumber(model.fps, 1)}</span></div>`,
       '<div class="row"><span class="label">Frame</span>',
       `<span class="value">${formatNumber(model.frameMs, 2)} ms</span></div>`,
+      '<div class="row"><span class="label">CPU</span>',
+      `<span class="value">${formatNumber(model.cpuMs, 2)} ms</span></div>`,
+      '<div class="row"><span class="label">GPU ms</span>',
+      `<span class="value">${formatNumber(model.renderMs, 2)} ms</span></div>`,
       '<div class="row"><span class="label">Draws</span>',
       `<span class="value">${formatNumber(model.drawCalls)}</span></div>`,
       '<div class="row"><span class="label">Tris</span>',
       `<span class="value">${formatNumber(model.triangles)}</span></div>`,
+      '<div class="row"><span class="label">Memory</span>',
+      `<span class="value">${formatNumber(model.geometries)}G / ${formatNumber(model.textures)}T</span></div>`,
       '<div class="row"><span class="label">Quality</span>',
       `<span class="value">${model.quality}</span></div>`,
       '<div class="row"><span class="label">GPU</span>',

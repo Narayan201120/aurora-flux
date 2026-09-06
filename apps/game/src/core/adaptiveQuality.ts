@@ -10,11 +10,13 @@ export class AdaptiveQuality {
   constructor(
     private readonly renderer: WebGLRenderer,
     private currentTier: QualityTier,
+    private readonly onTierChanged: (tier: QualityTier) => void = () => {},
   ) {
     const quality = presetForTier(currentTier);
     this.renderer.setPixelRatio(
       Math.min(window.devicePixelRatio, quality.pixelRatioCap),
     );
+    this.onTierChanged(currentTier);
   }
 
   get tier(): QualityTier {
@@ -50,6 +52,7 @@ export class AdaptiveQuality {
     this.renderer.setPixelRatio(
       Math.min(window.devicePixelRatio, quality.pixelRatioCap),
     );
+    this.onTierChanged(tier);
   }
 }
 
