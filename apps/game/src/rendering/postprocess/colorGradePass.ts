@@ -80,6 +80,11 @@ const COLOR_GRADE_SHADER = {
 
 export class ColorGradePass extends ShaderPass {
   private readonly typedUniforms: ColorGradeUniforms;
+  private readonly paletteMint = new Color("#9affe0");
+  private readonly paletteViolet = new Color("#a984ff");
+  private readonly palettePink = new Color("#ff78ce");
+  private readonly paletteCyan = new Color("#72f8ff");
+  private readonly hazardTint = new Color("#ff75c9");
 
   constructor() {
     super(COLOR_GRADE_SHADER);
@@ -89,5 +94,30 @@ export class ColorGradePass extends ShaderPass {
 
   setSize(width: number, height: number): void {
     this.typedUniforms.uResolution.value.set(width, height);
+  }
+
+  setSection(progress: number, audioPulse: number, hazard01: number): void {
+    const wrapped = ((progress % 1) + 1) % 1;
+    const phase = wrapped * 3;
+    const section = Math.min(2, Math.floor(phase));
+    const local = phase - section;
+    const from =
+      section === 0
+        ? this.paletteMint
+        : section === 1
+          ? this.paletteViolet
+          : this.palettePink;
+    const to =
+      section === 0
+        ? this.paletteCyan
+        : section === 1
+          ? this.palettePink
+          : this.paletteMint;
+    const tint = this.typedUniforms.uTint.value;
+    tint.copy(from).lerp(to, local * 0.82);
+    if (hazard01 > 0.01) tint.lerp(this.hazardTint, Math.min(0.18, hazard01 * 0.18));
+    this.typedUniforms.uTintStrength.value =
+      0.055 + Math.min(0.04, audioPulse * 0.04);
+    this.typedUniforms.uSaturation.value = 1.12 + Math.min(0.08, audioPulse * 0.08);
   }
 }

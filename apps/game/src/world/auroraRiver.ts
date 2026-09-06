@@ -46,6 +46,7 @@ uniform vec3 uColorNear;
 uniform vec3 uColorMid;
 uniform vec3 uColorFar;
 uniform float uIntensity;
+uniform float uReactive;
 
 varying float vLayer;
 varying vec3 vFlow;
@@ -55,7 +56,7 @@ void main() {
   float t = uTime * 0.4 + vLayer * 1.7;
   float wave = sin(vAlong * 4.0 + t + vFlow.x * 1.5) * 0.5 + 0.5;
   float pulse = sin(t * 0.7 + vAlong * 1.2) * 0.5 + 0.5;
-  float energy = wave * 0.6 + pulse * 0.4;
+  float energy = wave * 0.54 + pulse * 0.34 + uReactive * 0.12;
 
   float band1 = smoothstep(0.0, 0.4, energy);
   float band2 = smoothstep(0.45, 0.85, energy);
@@ -83,6 +84,7 @@ export interface AuroraLayerOptions {
 export function createAuroraLayer(options: AuroraLayerOptions): {
   mesh: Mesh;
   update: (time: number, flow: FlowField) => void;
+  setReactive: (value: number) => void;
 } {
   const positions = new Float32Array(options.segments * 2 * 3);
   const lengths = new Float32Array(options.segments * 2);
@@ -151,6 +153,7 @@ export function createAuroraLayer(options: AuroraLayerOptions): {
       uColorMid: { value: new Color(options.colorMid) },
       uColorFar: { value: new Color(options.colorFar) },
       uIntensity: { value: options.intensity },
+      uReactive: { value: 0 },
     },
   });
 
@@ -181,6 +184,13 @@ export function createAuroraLayer(options: AuroraLayerOptions): {
       }
       flowAttribute.needsUpdate = true;
     },
+    setReactive(value: number) {
+      const reactiveUniform = material.uniforms.uReactive;
+      if (reactiveUniform === undefined) return;
+      reactiveUniform.value = Number.isFinite(value)
+        ? Math.min(1, Math.max(0, value))
+        : 0;
+    },
   };
 }
 
@@ -191,6 +201,7 @@ export interface AuroraRiverOptions {
 export function createAuroraRiver(options: AuroraRiverOptions): {
   group: Group;
   update: (time: number, flow: FlowField) => void;
+  setReactive: (value: number) => void;
 } {
   const group = new Group();
   group.name = "AuroraRiver";
@@ -203,6 +214,9 @@ export function createAuroraRiver(options: AuroraRiverOptions): {
     group,
     update(time: number, flow: FlowField) {
       for (const layer of layers) layer.update(time, flow);
+    },
+    setReactive(value: number) {
+      for (const layer of layers) layer.setReactive(value);
     },
   };
 }

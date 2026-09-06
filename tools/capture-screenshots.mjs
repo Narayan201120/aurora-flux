@@ -89,13 +89,19 @@ await page.waitForFunction(
 const audioReady = await page.evaluate(
   () => window.__auroraFluxTest?.snapshot().audio,
 );
+const audioReactive = audioReady?.reactive;
+const reactiveValues = audioReactive
+  ? [audioReactive.low, audioReactive.mid, audioReactive.high, audioReactive.pulse]
+  : [];
 if (
   audioReady?.contextState !== "running" ||
   !audioReady.events.includes("engine") ||
   !audioReady.events.includes("ambient") ||
   audioReady.engineWaveform === "sawtooth" ||
   audioReady.masterGain > 0.14 ||
-  audioReady.engineGain > 0.03
+  audioReady.engineGain > 0.03 ||
+  reactiveValues.length !== 4 ||
+  reactiveValues.some((value) => !Number.isFinite(value) || value < 0 || value > 1)
 ) {
   errors.push(`Audio graph did not unlock: ${JSON.stringify(audioReady)}`);
 }
@@ -108,6 +114,21 @@ const speedText = await page.locator("[data-hud=speed]").textContent();
 const readyState = await page.evaluate(() =>
   window.__auroraFluxTest?.snapshot(),
 );
+const visualValues = readyState?.visual
+  ? [
+      readyState.visual.speed01,
+      readyState.visual.audioLow,
+      readyState.visual.audioMid,
+      readyState.visual.audioHigh,
+      readyState.visual.audioPulse,
+    ]
+  : [];
+if (
+  visualValues.length !== 5 ||
+  visualValues.some((value) => !Number.isFinite(value) || value < 0 || value > 1)
+) {
+  errors.push(`Visual state was not bounded: ${JSON.stringify(readyState?.visual)}`);
+}
 const performanceSnapshot = readyState?.performance;
 if (
   !performanceSnapshot ||

@@ -13,7 +13,7 @@ import {
   type QualityTier,
 } from "./config/config.js";
 import { KeyboardControls } from "./racer/controls.js";
-import { ChaseCamera } from "./racer/chaseCamera.js";
+import { ChaseCamera, DEFAULT_CHASE } from "./racer/chaseCamera.js";
 import { Racer } from "./racer/racer.js";
 import { createRacerMesh } from "./racer/racerMesh.js";
 import {
@@ -93,6 +93,10 @@ interface BrowserTestApi {
     nextCheckpoint: number;
     audio: AudioSnapshot;
     performance: PerformanceSnapshot;
+    visual: Pick<
+      import("./rendering/visualState.js").VisualState,
+      "speed01" | "audioLow" | "audioMid" | "audioHigh" | "audioPulse"
+    >;
   };
 }
 
@@ -247,7 +251,19 @@ function bootstrap(): void {
   scene.add(racerMesh.group);
 
   const rebase = new WorldRebase({ chunkSize: 256 });
-  const chase = new ChaseCamera(camera);
+  const isPortrait = initialSize.y > initialSize.x;
+  const chase = new ChaseCamera(
+    camera,
+    isPortrait
+      ? {
+          ...DEFAULT_CHASE,
+          followDistance: 11.8,
+          followHeight: 4.1,
+          lookAheadDistance: 7.4,
+          fovBase: 66,
+        }
+      : DEFAULT_CHASE,
+  );
   const controls = new KeyboardControls(window);
   const post = createPostProcess(renderer, {
     width: container.clientWidth,
@@ -294,12 +310,15 @@ function bootstrap(): void {
   let impactPulse = 0;
   let nextSparkTime = 0;
   let nextWakeTime = 0;
+  let nextRivalWakeTime = 0;
   let fxSeed = 1;
   const fxPosition = new Vector3();
   const fxVelocity = new Vector3();
   const sparkColor = new Color("#9affe0");
   const wakeColor = new Color("#72f8ff");
   const impactColor = new Color("#ff78ce");
+  const technicalTrailColor = new Color("#9affe0");
+  const wildTrailColor = new Color("#a984ff");
 
   const resetRace = (): void => {
     racer.reset(startPosition, 0);
@@ -316,6 +335,7 @@ function bootstrap(): void {
     impactPulse = 0;
     nextSparkTime = 0;
     nextWakeTime = 0;
+    nextRivalWakeTime = 0;
     visualFx.reset();
   };
   const hud = new RaceHud(hudRoot, track, resetRace);
@@ -335,6 +355,13 @@ function bootstrap(): void {
         nextCheckpoint: checkpoints.state.nextIndex,
         audio: audio.snapshot(),
         performance: telemetry.snapshot(),
+        visual: {
+          speed01: visualState.speed01,
+          audioLow: visualState.audioLow,
+          audioMid: visualState.audioMid,
+          audioHigh: visualState.audioHigh,
+          audioPulse: visualState.audioPulse,
+        },
       }),
     };
   }
@@ -456,12 +483,23 @@ function bootstrap(): void {
         audio: audio.reactiveState(),
         quality: quality.tier,
       });
+      post.colorGradePass.setSection(
+        visualState.progress,
+        visualState.audioPulse,
+        visualState.hazard01,
+      );
+      environment.setReactive(visualState.audioPulse);
       quality.update(meter.current.frameMs);
       renderer.toneMappingExposure =
         hazardSnapshot.effect.visibilityMultiplier + exposureFlash;
       exposureFlash = Math.max(0, exposureFlash - deltaSeconds * 3.8);
 
       track.update(timeSeconds);
+      track.setVisualState(
+        visualState.audioPulse,
+        visualState.boost01,
+        visualState.drift01,
+      );
       environment.update(deltaSeconds, timeSeconds);
       if (racer.boostActive && !lastBoostFlag) {
         chase.triggerFovPulse(8, 0.6);
@@ -525,6 +563,33 @@ function bootstrap(): void {
         );
         fxSeed += 1;
         nextWakeTime = timeSeconds + 0.07;
+      }
+      if (timeSeconds >= nextRivalWakeTime) {
+        for (const opponent of opponentSnapshots) {
+          if (opponent.speed <= 8) continue;
+          fxPosition.copy(opponent.position);
+          fxPosition.y -= 0.36;
+          fxVelocity.copy(opponent.velocity).multiplyScalar(-0.2);
+          const trailColor =
+            opponent.personality === "technical"
+              ? technicalTrailColor
+              : opponent.personality === "wild"
+                ? wildTrailColor
+                : impactColor;
+          visualFx.spawnEngineWake(
+            timeSeconds,
+            fxPosition,
+            fxVelocity,
+            trailColor,
+            opponent.drafting ? 0.3 : 0.22,
+            0.34,
+            opponent.drifting ? 0.8 : 0.56,
+            opponent.heading,
+            fxSeed,
+          );
+          fxSeed += 1;
+        }
+        nextRivalWakeTime = timeSeconds + 0.1;
       }
       boostPulse = Math.max(0, boostPulse - deltaSeconds * 2.4);
       impactPulse = Math.max(0, impactPulse - deltaSeconds * 3.8);

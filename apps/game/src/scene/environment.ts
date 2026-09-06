@@ -29,6 +29,7 @@ export interface Environment {
   landmarks: LandmarkSystem;
   update: (deltaSeconds: number, time: number) => void;
   setQuality: (tier: QualityTier) => void;
+  setReactive: (audioPulse: number) => void;
 }
 
 export function createEnvironment(options: EnvironmentOptions): Environment {
@@ -65,6 +66,9 @@ export function createEnvironment(options: EnvironmentOptions): Environment {
       starfield.setQuality(tier);
       nebula.setQuality(tier);
       landmarks.setQuality(tier);
+    },
+    setReactive(audioPulse: number) {
+      aurora.setReactive(audioPulse);
     },
   };
 }

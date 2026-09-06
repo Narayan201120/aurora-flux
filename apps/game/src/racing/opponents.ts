@@ -29,6 +29,9 @@ export interface OpponentSnapshot {
   drifting: boolean;
   drafting: boolean;
   behavior: AIBehavior;
+  position: Vector3;
+  velocity: Vector3;
+  heading: number;
 }
 
 export interface OpponentSystemOptions {
@@ -232,6 +235,9 @@ export function createOpponentSystem(
       drifting: false,
       drafting: false,
       behavior: "racing-line",
+      position: new Vector3(),
+      velocity: new Vector3(),
+      heading: 0,
     };
     group.add(mesh.group);
     const opponent: AIOpponent = {
@@ -436,6 +442,9 @@ export function createOpponentSystem(
         opponent.snapshot.progress = opponent.progress;
         opponent.snapshot.speed = opponent.speed;
         opponent.snapshot.drifting = opponent.drifting;
+        opponent.snapshot.position.copy(opponent.racer.position);
+        opponent.snapshot.velocity.copy(opponent.racer.velocity);
+        opponent.snapshot.heading = opponent.racer.heading;
         opponent.drafting = drafting;
         opponent.behavior = behavior;
         opponent.snapshot.drafting = drafting;
@@ -481,6 +490,9 @@ export function createOpponentSystem(
         opponent.snapshot.progress = opponent.progress;
         opponent.snapshot.speed = 0;
         opponent.snapshot.drifting = false;
+        opponent.snapshot.position.copy(opponent.racer.position);
+        opponent.snapshot.velocity.copy(opponent.racer.velocity);
+        opponent.snapshot.heading = opponent.racer.heading;
         placeOpponent(opponent, options.track, index);
       });
     },
@@ -500,6 +512,9 @@ function placeOpponent(
   opponent.racer.position.copy(position);
   opponent.racer.velocity.set(0, 0, 0);
   opponent.racer.heading = Math.atan2(sample.tangent.x, sample.tangent.z);
+  opponent.snapshot.position.copy(opponent.racer.position);
+  opponent.snapshot.velocity.copy(opponent.racer.velocity);
+  opponent.snapshot.heading = opponent.racer.heading;
   opponent.mesh.group.position.copy(position);
   opponent.mesh.group.rotation.y = opponent.racer.heading;
   opponent.mesh.rider.update({

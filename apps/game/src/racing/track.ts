@@ -24,6 +24,7 @@ export interface TrackSystem {
   sample: (progress: number) => TrackSample;
   nearest: (position: Vector3) => TrackSample & { distance: number };
   update: (time: number) => void;
+  setVisualState: (audioPulse: number, boost01: number, drift01: number) => void;
 }
 
 const TRACK_POINTS = [
@@ -76,6 +77,9 @@ uniform vec3 uPaletteCyan;
 uniform vec3 uPaletteViolet;
 uniform vec3 uPalettePink;
 uniform float uTime;
+uniform float uAudioPulse;
+uniform float uBoost;
+uniform float uDrift;
 
 varying vec2 vLocal;
 varying float vProgress;
@@ -150,13 +154,18 @@ void main() {
   color = mix(color, edgeColor, edgeEnergy * 0.48);
   color = mix(color, vec3(0.78, 1.0, 0.97), coreHighlight * 0.58);
 
-  float energy = clamp(flow * 0.32 + filament * 0.42 + lanePulse * 0.2, 0.0, 1.0);
+  float audioEnergy = uAudioPulse * 0.22 + uBoost * 0.18 + uDrift * 0.08;
+  float energy = clamp(
+    flow * 0.32 + filament * 0.42 + lanePulse * 0.2 + audioEnergy,
+    0.0,
+    1.0
+  );
   color *= 0.78 + energy * 0.52;
 
   float alpha = core * (0.3 + energy * 0.24);
   alpha += edgeEnergy * (0.14 + flow * 0.2 + filament * 0.12);
   alpha += lanePulse * (0.08 + core * 0.12);
-  alpha = clamp(alpha, 0.0, 0.86);
+  alpha = clamp(alpha * (0.9 + audioEnergy * 0.8), 0.0, 0.86);
 
   gl_FragColor = vec4(color, alpha);
 }
@@ -221,6 +230,9 @@ function createRibbon(
       uPaletteCyan: { value: new Color("#72f8ff") },
       uPaletteViolet: { value: new Color("#a984ff") },
       uPalettePink: { value: new Color("#ff78ce") },
+      uAudioPulse: { value: 0 },
+      uBoost: { value: 0 },
+      uDrift: { value: 0 },
     },
   });
   const mesh = new Mesh(geometry, material);
@@ -277,5 +289,25 @@ export function createTrackSystem(): TrackSystem {
         if (timeUniform) timeUniform.value = time;
       }
     },
+    setVisualState(audioPulse: number, boost01: number, drift01: number) {
+      if (!(ribbon.material instanceof ShaderMaterial)) return;
+      const uniforms = ribbon.material.uniforms;
+      const audioPulseUniform = uniforms.uAudioPulse;
+      const boostUniform = uniforms.uBoost;
+      const driftUniform = uniforms.uDrift;
+      if (
+        audioPulseUniform === undefined ||
+        boostUniform === undefined ||
+        driftUniform === undefined
+      )
+        return;
+      audioPulseUniform.value = clamp01(audioPulse);
+      boostUniform.value = clamp01(boost01);
+      driftUniform.value = clamp01(drift01);
+    },
   };
+}
+
+function clamp01(value: number): number {
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }
