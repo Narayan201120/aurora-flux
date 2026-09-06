@@ -2,13 +2,22 @@ import { Group, Vector3 } from "three";
 import type { RacePhase } from "./raceState.js";
 import type { TrackSystem } from "./track.js";
 import { Racer } from "../racer/racer.js";
+import type { ObstacleSphere } from "../racer/obstacles.js";
 import {
   createRacerMesh,
   type RacerColorSet,
   type RacerMesh,
 } from "../racer/racerMesh.js";
+import { HAZARD_DEFINITIONS, type HazardSnapshot } from "../world/hazards.js";
 
 export type AIPersonality = "aggressive" | "technical" | "wild";
+export type AIBehavior =
+  | "racing-line"
+  | "drafting"
+  | "overtaking"
+  | "avoiding-obstacle"
+  | "avoiding-hazard"
+  | "recovering";
 
 export interface OpponentSnapshot {
   id: string;
@@ -18,6 +27,8 @@ export interface OpponentSnapshot {
   progress: number;
   speed: number;
   drifting: boolean;
+  drafting: boolean;
+  behavior: AIBehavior;
 }
 
 export interface OpponentSystemOptions {
@@ -32,6 +43,9 @@ export interface OpponentSystem {
     time: number,
     phase: RacePhase,
     playerDistance: number,
+    playerPosition: Vector3,
+    hazards: HazardSnapshot,
+    obstacles: ReadonlyArray<ObstacleSphere>,
   ) => void;
   snapshots: () => ReadonlyArray<OpponentSnapshot>;
   draftTarget: (
@@ -59,6 +73,11 @@ interface AIOpponent {
   lap: number;
   speed: number;
   drifting: boolean;
+  drafting: boolean;
+  behavior: AIBehavior;
+  laneOffset: number;
+  blockedSeconds: number;
+  recoveryTimer: number;
   snapshot: OpponentSnapshot;
 }
 
@@ -211,9 +230,11 @@ export function createOpponentSystem(
       progress,
       speed: 0,
       drifting: false,
+      drafting: false,
+      behavior: "racing-line",
     };
     group.add(mesh.group);
-    const opponent = {
+    const opponent: AIOpponent = {
       profile,
       racer,
       mesh,
@@ -221,6 +242,11 @@ export function createOpponentSystem(
       lap: 0,
       speed: 0,
       drifting: false,
+      drafting: false,
+      behavior: "racing-line",
+      laneOffset: profile.lane,
+      blockedSeconds: 0,
+      recoveryTimer: 0,
       snapshot,
     };
     placeOpponent(opponent, options.track, 0);
@@ -234,6 +260,9 @@ export function createOpponentSystem(
       time: number,
       phase: RacePhase,
       playerDistance: number,
+      playerPosition: Vector3,
+      hazards: HazardSnapshot,
+      obstacles: ReadonlyArray<ObstacleSphere>,
     ) {
       if (phase !== "racing") {
         for (const opponent of opponents) {
@@ -245,27 +274,123 @@ export function createOpponentSystem(
             boostActive: false,
             impactActive: false,
           });
+          opponent.snapshot.behavior = "racing-line";
+          opponent.snapshot.drafting = false;
         }
         return;
       }
 
       for (const opponent of opponents) {
         const distance = opponent.lap + opponent.progress;
-        const catchup = clamp(playerDistance - distance, -0.18, 0.18);
+        const rubberBandGap = clamp(playerDistance - distance, -0.24, 0.24);
         const wobble =
           Math.sin(
             time * (1.2 + opponent.profile.wobble) + opponent.progress * 20,
           ) * opponent.profile.wobble;
+        const sample = options.track.sample(opponent.progress);
+        SIDE.crossVectors(sample.tangent, UP).normalize();
+        const blocker = findBlocker(
+          opponent,
+          opponents,
+          playerPosition,
+          sample.tangent,
+          SIDE,
+        );
+        const obstacle = findObstacle(
+          opponent.racer.position,
+          sample.tangent,
+          SIDE,
+          obstacles,
+        );
+        const hazard = findUpcomingHazard(
+          opponent.progress,
+          options.track.length,
+        );
+
+        opponent.recoveryTimer = Math.max(
+          0,
+          opponent.recoveryTimer - deltaSeconds,
+        );
+        if (obstacle && obstacle.distance < 8) {
+          opponent.blockedSeconds += deltaSeconds;
+        } else {
+          opponent.blockedSeconds = Math.max(
+            0,
+            opponent.blockedSeconds - deltaSeconds * 2,
+          );
+        }
+        if (opponent.blockedSeconds > 0.45) {
+          opponent.recoveryTimer = 0.8;
+          opponent.blockedSeconds = 0;
+        }
+
+        let desiredLane = opponent.profile.lane + wobble;
+        let behavior: AIBehavior = "racing-line";
+        let drafting = false;
+        let decisionPenalty = 0;
+        if (opponent.recoveryTimer > 0) {
+          behavior = "recovering";
+          desiredLane = opponent.profile.lane;
+        } else if (obstacle) {
+          behavior = "avoiding-obstacle";
+          desiredLane = chooseAvoidanceLane(
+            opponent.profile.lane,
+            obstacle.lateral,
+            obstacles,
+          );
+          decisionPenalty = 5;
+        } else if (hazard && hazard.distance < 72) {
+          behavior = "avoiding-hazard";
+          desiredLane = chooseAvoidanceLane(
+            opponent.profile.lane,
+            hazard.offset,
+            [],
+          );
+          decisionPenalty = hazard.distance < 12 ? 10 : 3;
+        } else if (blocker) {
+          if (blocker.distance > 9 && blocker.distance < 18) {
+            behavior = "drafting";
+            drafting = true;
+            decisionPenalty = -6;
+          } else {
+            behavior = "overtaking";
+            desiredLane = chooseOvertakeLane(
+              opponent.profile.lane,
+              blocker.lateral,
+              opponent.profile.personality,
+            );
+            decisionPenalty = -2;
+          }
+        }
+
+        opponent.laneOffset +=
+          (clamp(desiredLane, -6.2, 6.2) - opponent.laneOffset) *
+          Math.min(1, deltaSeconds * 5.5);
         const riskPulse =
           opponent.profile.personality === "aggressive"
             ? Math.sin(time * 2.7) * 3.5
             : opponent.profile.personality === "wild"
               ? Math.sin(time * 5.2) * 7
               : 0;
+        const rubberBandStrength =
+          opponent.profile.personality === "aggressive"
+            ? 48
+            : opponent.profile.personality === "technical"
+              ? 36
+              : 42;
+        const draftBonus = drafting ? 8 : 0;
+        const recoveryBonus = opponent.recoveryTimer > 0 ? 7 : 0;
+        const hazardPenalty = hazards.effect.active ? 3 : 0;
         opponent.speed = clamp(
-          opponent.profile.pace + catchup * 42 + riskPulse,
-          52,
-          88,
+          opponent.profile.pace +
+            rubberBandGap * rubberBandStrength +
+            riskPulse +
+            draftBonus +
+            recoveryBonus -
+            decisionPenalty -
+            hazardPenalty,
+          48,
+          94,
         );
         opponent.progress +=
           (opponent.speed / options.track.length) * deltaSeconds;
@@ -274,17 +399,23 @@ export function createOpponentSystem(
           opponent.lap += 1;
         }
 
-        const sample = options.track.sample(opponent.progress);
-        SIDE.crossVectors(sample.tangent, UP).normalize();
-        const lane = opponent.profile.lane + wobble;
-        POSITION.copy(sample.position).addScaledVector(SIDE, lane);
+        const updatedSample = options.track.sample(opponent.progress);
+        SIDE.crossVectors(updatedSample.tangent, UP).normalize();
+        POSITION.copy(updatedSample.position).addScaledVector(
+          SIDE,
+          opponent.laneOffset,
+        );
         POSITION.y += Math.sin(time * 4 + opponent.progress * 30) * 0.05;
-        VELOCITY.copy(sample.tangent).multiplyScalar(opponent.speed);
+        VELOCITY.copy(updatedSample.tangent).multiplyScalar(opponent.speed);
         opponent.racer.position.copy(POSITION);
         opponent.racer.velocity.copy(VELOCITY);
-        opponent.racer.heading = Math.atan2(sample.tangent.x, sample.tangent.z);
+        opponent.racer.heading = Math.atan2(
+          updatedSample.tangent.x,
+          updatedSample.tangent.z,
+        );
         opponent.racer.speed = opponent.speed;
-        opponent.racer.steerAngle = -wobble * 0.3;
+        opponent.racer.steerAngle =
+          clamp(opponent.laneOffset - opponent.profile.lane, -4, 4) * 0.05;
         opponent.drifting =
           opponent.profile.personality !== "technical" &&
           Math.abs(wobble) > opponent.profile.wobble * 0.65;
@@ -303,6 +434,10 @@ export function createOpponentSystem(
         opponent.snapshot.progress = opponent.progress;
         opponent.snapshot.speed = opponent.speed;
         opponent.snapshot.drifting = opponent.drifting;
+        opponent.drafting = drafting;
+        opponent.behavior = behavior;
+        opponent.snapshot.drafting = drafting;
+        opponent.snapshot.behavior = behavior;
       }
     },
     snapshots() {
@@ -335,6 +470,11 @@ export function createOpponentSystem(
         opponent.progress = 0.012 + index * 0.026;
         opponent.lap = 0;
         opponent.speed = 0;
+        opponent.drafting = false;
+        opponent.behavior = "racing-line";
+        opponent.laneOffset = opponent.profile.lane;
+        opponent.blockedSeconds = 0;
+        opponent.recoveryTimer = 0;
         opponent.snapshot.lap = 0;
         opponent.snapshot.progress = opponent.progress;
         opponent.snapshot.speed = 0;
@@ -368,6 +508,116 @@ function placeOpponent(
     boostActive: false,
     impactActive: false,
   });
+  opponent.laneOffset = opponent.profile.lane;
+}
+
+interface Blocker {
+  distance: number;
+  lateral: number;
+}
+
+interface UpcomingHazard {
+  distance: number;
+  offset: number;
+}
+
+function findBlocker(
+  opponent: AIOpponent,
+  opponents: ReadonlyArray<AIOpponent>,
+  playerPosition: Vector3,
+  tangent: Vector3,
+  side: Vector3,
+): Blocker | undefined {
+  let nearest: Blocker | undefined;
+  const consider = (position: Vector3): void => {
+    const dx = position.x - opponent.racer.position.x;
+    const dz = position.z - opponent.racer.position.z;
+    const distance = Math.hypot(dx, dz);
+    const ahead = dx * tangent.x + dz * tangent.z;
+    const lateral = dx * side.x + dz * side.z;
+    if (
+      ahead > 1.5 &&
+      ahead < 20 &&
+      Math.abs(lateral) < 3.4 &&
+      (!nearest || distance < nearest.distance)
+    ) {
+      nearest = { distance, lateral };
+    }
+  };
+
+  consider(playerPosition);
+  for (const candidate of opponents) {
+    if (candidate === opponent) continue;
+    consider(candidate.racer.position);
+  }
+  return nearest;
+}
+
+function findObstacle(
+  position: Vector3,
+  tangent: Vector3,
+  side: Vector3,
+  obstacles: ReadonlyArray<ObstacleSphere>,
+): (Blocker & { radius: number }) | undefined {
+  let nearest: (Blocker & { radius: number }) | undefined;
+  for (const obstacle of obstacles) {
+    const dx = obstacle.position.x - position.x;
+    const dz = obstacle.position.z - position.z;
+    const ahead = dx * tangent.x + dz * tangent.z;
+    const lateral = dx * side.x + dz * side.z;
+    const distance = Math.hypot(dx, dz);
+    if (
+      ahead > 0 &&
+      ahead < 25 &&
+      Math.abs(lateral) < obstacle.radius + 3 &&
+      (!nearest || distance < nearest.distance)
+    ) {
+      nearest = { distance, lateral, radius: obstacle.radius };
+    }
+  }
+  return nearest;
+}
+
+function findUpcomingHazard(
+  progress: number,
+  trackLength: number,
+): (UpcomingHazard & { kind: string }) | undefined {
+  let nearest: (UpcomingHazard & { kind: string }) | undefined;
+  for (const hazard of HAZARD_DEFINITIONS) {
+    const distance =
+      forwardProgressDistance(progress, hazard.progress) * trackLength;
+    if (!nearest || distance < nearest.distance) {
+      nearest = { distance, offset: hazard.offset, kind: hazard.kind };
+    }
+  }
+  return nearest;
+}
+
+function chooseAvoidanceLane(
+  baseLane: number,
+  blockingLateral: number,
+  obstacles: ReadonlyArray<ObstacleSphere>,
+): number {
+  const direction = blockingLateral >= 0 ? -1 : 1;
+  const candidate = clamp(baseLane + direction * 3.8, -6.2, 6.2);
+  const crowded = obstacles.some(
+    (obstacle) => Math.abs(obstacle.position.x) < 0,
+  );
+  return crowded ? clamp(candidate + direction * 1.2, -6.2, 6.2) : candidate;
+}
+
+function chooseOvertakeLane(
+  baseLane: number,
+  blockerLateral: number,
+  personality: AIPersonality,
+): number {
+  const preferredDirection =
+    personality === "aggressive" ? 1 : blockerLateral >= 0 ? -1 : 1;
+  return clamp(baseLane + preferredDirection * 3.5, -6.2, 6.2);
+}
+
+function forwardProgressDistance(left: number, right: number): number {
+  return (right - left + 1) % 1;
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

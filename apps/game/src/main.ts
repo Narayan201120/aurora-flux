@@ -300,16 +300,20 @@ function bootstrap(): void {
       const priorRace = race.snapshot();
       const playerDistance =
         checkpoints.state.lapsCompleted + checkpoints.state.routeProgress;
+      const hazardSnapshot = hazards.update(
+        deltaSeconds,
+        timeSeconds,
+        racer.position,
+      );
+      obstacles.update(deltaSeconds, racer.position);
       opponents.update(
         deltaSeconds,
         timeSeconds,
         priorRace.phase,
         playerDistance,
-      );
-      const hazardSnapshot = hazards.update(
-        deltaSeconds,
-        timeSeconds,
         racer.position,
+        hazardSnapshot,
+        obstacles.spheres,
       );
       const rawInput = priorRace.canControl
         ? controls.sample()
@@ -355,7 +359,6 @@ function bootstrap(): void {
 
       worldRoot.position.set(-origin.x, -origin.y, -origin.z);
       environment.group.position.copy(racer.position);
-      obstacles.update(deltaSeconds, racer.position);
       checkpoints.update(racer.position, timeSeconds);
       for (const sphere of obstacles.spheres) racer.applyImpact(sphere);
       const raceSnapshot = race.update({

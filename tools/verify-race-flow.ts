@@ -12,6 +12,7 @@ import {
   createHazardSystem,
 } from "../apps/game/src/world/hazards.ts";
 import { createLandmarkSystem } from "../apps/game/src/world/landmarks.ts";
+import { createOpponentSystem } from "../apps/game/src/racing/opponents.ts";
 
 const trackA = createTrackSystem();
 const trackB = createTrackSystem();
@@ -19,6 +20,21 @@ const checkpointSystem = createCheckpointSystem(trackA);
 const race = new RaceState();
 const hazards = createHazardSystem(trackA);
 const landmarks = createLandmarkSystem();
+const viewport = trackA.sample(0).position.clone().set(1280, 720, 1);
+const neutralHazards = {
+  warnings: [],
+  effect: {
+    speedMultiplier: 1,
+    steeringMultiplier: 1,
+    visibilityMultiplier: 1,
+    active: false,
+  },
+  activeLabel: "",
+};
+const opponents = createOpponentSystem({
+  viewport,
+  track: trackA,
+});
 
 if (
   HAZARD_DEFINITIONS.length !== 6 ||
@@ -36,6 +52,77 @@ for (const name of [
   if (!landmarks.group.children.some((child) => child.name === name)) {
     throw new Error(`World landmark is missing: ${name}`);
   }
+}
+
+opponents.update(
+  0.016,
+  0.5,
+  "racing",
+  0.03,
+  trackA.sample(0.03).position,
+  neutralHazards,
+  [],
+);
+const draftingSnapshots = opponents.snapshots();
+if (
+  draftingSnapshots.length !== 3 ||
+  !draftingSnapshots.some((opponent) => opponent.behavior === "drafting")
+) {
+  throw new Error("AI drafting behavior did not engage behind a racer");
+}
+
+opponents.reset();
+opponents.update(
+  0.016,
+  0.5,
+  "racing",
+  0.02,
+  trackA.sample(0.016).position,
+  neutralHazards,
+  [],
+);
+if (
+  !opponents.snapshots().some((opponent) => opponent.behavior === "overtaking")
+) {
+  throw new Error("AI overtaking behavior did not engage around a blocker");
+}
+
+opponents.reset();
+opponents.update(
+  0.016,
+  0.5,
+  "racing",
+  0,
+  trackA.sample(0).position,
+  neutralHazards,
+  [{ position: trackA.sample(0.02).position.clone(), radius: 2 }],
+);
+if (
+  !opponents
+    .snapshots()
+    .some((opponent) => opponent.behavior === "avoiding-obstacle")
+) {
+  throw new Error("AI obstacle avoidance did not engage");
+}
+
+opponents.reset();
+let hazardReactionSeen = false;
+for (let index = 0; index < 18; index += 1) {
+  opponents.update(
+    0.1,
+    index * 0.1,
+    "racing",
+    0,
+    trackA.sample(0).position,
+    neutralHazards,
+    [],
+  );
+  hazardReactionSeen ||= opponents
+    .snapshots()
+    .some((opponent) => opponent.behavior === "avoiding-hazard");
+}
+if (!hazardReactionSeen) {
+  throw new Error("AI hazard reaction did not engage before a course hazard");
 }
 
 for (const progress of [0, 0.12, 0.25, 0.38, 0.5, 0.62, 0.75, 0.88, 0]) {
