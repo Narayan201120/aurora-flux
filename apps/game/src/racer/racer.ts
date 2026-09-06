@@ -241,6 +241,9 @@ export class Racer {
     if (this.inputDampTimer > 0) {
       this.inputDampTimer = Math.max(0, this.inputDampTimer - deltaSeconds);
     }
+    if (this.recoveryTimer === 0 && this.inputDampTimer === 0) {
+      this.lastImpact = null;
+    }
 
     // Apply input damping while recovering from impact.
     const inputDamp = this.inputDampTimer > 0 ? cfg.impactInputDamp : 1;

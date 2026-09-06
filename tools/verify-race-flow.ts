@@ -15,6 +15,7 @@ import {
 import { createLandmarkSystem } from "../apps/game/src/world/landmarks.ts";
 import { createOpponentSystem } from "../apps/game/src/racing/opponents.ts";
 import { createRacerMesh } from "../apps/game/src/racer/racerMesh.ts";
+import { Racer } from "../apps/game/src/racer/racer.ts";
 
 const trackA = createTrackSystem();
 const trackB = createTrackSystem();
@@ -161,6 +162,26 @@ if (
   throw new Error(
     "Rider victory animation did not change the presentation pose",
   );
+}
+
+const impactRacerMesh = createRacerMesh({ viewport });
+const impactRacer = new Racer(impactRacerMesh.group);
+const impactPosition = trackA.sample(0).position.clone();
+impactRacer.reset(impactPosition, 0);
+impactRacer.applyImpact({ position: impactPosition, radius: 2 });
+if (!impactRacer.lastImpact) throw new Error("Impact feedback did not trigger");
+impactRacer.applyInput(
+  {
+    throttle: 0,
+    steer: 0,
+    brake: false,
+    handbrake: false,
+    boost: false,
+  },
+  1,
+);
+if (impactRacer.lastImpact !== null || impactRacer.recoveryTimer !== 0) {
+  throw new Error("Impact feedback remained latched after recovery");
 }
 
 for (const progress of [0, 0.12, 0.25, 0.38, 0.5, 0.62, 0.75, 0.88, 0]) {

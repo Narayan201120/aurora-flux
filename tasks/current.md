@@ -1,11 +1,11 @@
 # Current objective
 
-Milestone: M13 polish pass
+Milestone: Release candidate
 
-M12 is complete. Aurora Flux now runs a complete procedural arcade race loop
-with adaptive quality tiers, bounded starfield particle scaling, corrected FPS
-sampling, and runtime CPU/GPU/draw/memory telemetry. The debug overlay and
-browser harness can now prove scene budgets without affecting the default HUD.
+M13 is complete. Aurora Flux is a cohesive procedural arcade race loop with
+polished visuals, responsive UI, synthesized audio, balanced AI behavior,
+transient impact feedback, and a verified performance budget. The release
+candidate passes the full deterministic, browser, screenshot, and build suite.
 
 ## Implemented systems
 
@@ -28,6 +28,7 @@ browser harness can now prove scene budgets without affecting the default HUD.
 - Adaptive starfield particle scaling with low/medium/high tiers
 - CPU, GPU, draw-call, triangle, geometry, and texture telemetry
 - Playwright browser harness with startup, movement, three-lap finish, and restart captures
+- Final polish pass with transient impact state and release-candidate checks
 
 ## Verification
 

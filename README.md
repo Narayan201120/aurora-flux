@@ -31,7 +31,7 @@ Then open http://127.0.0.1:5173/.
 
 ## Status
 
-The repository contains the playable release loop through M12:
+The repository contains the Aurora Flux release candidate through M13:
 
 - Three-lap aurora circuit with countdown, checkpoints, finish, and restart
 - Three procedural AI opponents with racing lines, drafting, overtaking,
@@ -40,6 +40,7 @@ The repository contains the playable release loop through M12:
 - Responsive race HUD with mobile verification and accessible field labels
 - Procedural Web Audio engine, ambient bed, event cues, and dynamic mixing
 - Adaptive quality tiers with particle scaling and runtime performance telemetry
+- Finalized transient impact feedback and release-candidate verification
 - Procedural hazards (including dark matter storms), landmarks, riders, HUD,
   minimap, results, and Web Audio
 - Adaptive quality scaling and browser screenshot verification
