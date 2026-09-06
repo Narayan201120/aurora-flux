@@ -273,6 +273,7 @@ export function createOpponentSystem(
             drifting: false,
             boostActive: false,
             impactActive: false,
+            victory: false,
           });
           opponent.snapshot.behavior = "racing-line";
           opponent.snapshot.drafting = false;
@@ -429,6 +430,7 @@ export function createOpponentSystem(
           drifting: opponent.drifting,
           boostActive: riskPulse > 5,
           impactActive: false,
+          victory: false,
         });
         opponent.snapshot.lap = opponent.lap;
         opponent.snapshot.progress = opponent.progress;
@@ -507,6 +509,7 @@ function placeOpponent(
     drifting: false,
     boostActive: false,
     impactActive: false,
+    victory: false,
   });
   opponent.laneOffset = opponent.profile.lane;
 }

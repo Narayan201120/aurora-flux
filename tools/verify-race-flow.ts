@@ -13,6 +13,7 @@ import {
 } from "../apps/game/src/world/hazards.ts";
 import { createLandmarkSystem } from "../apps/game/src/world/landmarks.ts";
 import { createOpponentSystem } from "../apps/game/src/racing/opponents.ts";
+import { createRacerMesh } from "../apps/game/src/racer/racerMesh.ts";
 
 const trackA = createTrackSystem();
 const trackB = createTrackSystem();
@@ -21,6 +22,7 @@ const race = new RaceState();
 const hazards = createHazardSystem(trackA);
 const landmarks = createLandmarkSystem();
 const viewport = trackA.sample(0).position.clone().set(1280, 720, 1);
+const rider = createRacerMesh({ viewport }).rider;
 const neutralHazards = {
   warnings: [],
   effect: {
@@ -123,6 +125,34 @@ for (let index = 0; index < 18; index += 1) {
 }
 if (!hazardReactionSeen) {
   throw new Error("AI hazard reaction did not engage before a course hazard");
+}
+
+rider.update({
+  time: 0,
+  throttle: 1,
+  steerAngle: 0.3,
+  drifting: true,
+  boostActive: false,
+  impactActive: false,
+  victory: false,
+});
+const normalRiderHeight = rider.group.position.y;
+rider.update({
+  time: 0.4,
+  throttle: 0,
+  steerAngle: 0,
+  drifting: false,
+  boostActive: false,
+  impactActive: false,
+  victory: true,
+});
+if (
+  rider.group.position.y <= normalRiderHeight ||
+  rider.group.rotation.x >= -0.1
+) {
+  throw new Error(
+    "Rider victory animation did not change the presentation pose",
+  );
 }
 
 for (const progress of [0, 0.12, 0.25, 0.38, 0.5, 0.62, 0.75, 0.88, 0]) {

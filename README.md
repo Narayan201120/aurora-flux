@@ -31,11 +31,12 @@ Then open http://127.0.0.1:5173/.
 
 ## Status
 
-The repository contains the playable release loop through M8:
+The repository contains the playable release loop through M9:
 
 - Three-lap aurora circuit with countdown, checkpoints, finish, and restart
 - Three procedural AI opponents with racing lines, drafting, overtaking,
   avoidance, recovery, personality, and position tracking
+- Procedural rider animation with finish celebration
 - Procedural hazards (including dark matter storms), landmarks, riders, HUD,
   minimap, results, and Web Audio
 - Adaptive quality scaling and browser screenshot verification

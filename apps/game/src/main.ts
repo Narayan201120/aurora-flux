@@ -340,14 +340,6 @@ function bootstrap(): void {
       renderPlayer.copy(racer.position).sub(origin);
       if (rebaseDelta.lengthSq() > 0) chase.shiftRenderOrigin(rebaseDelta);
       racerMesh.group.position.copy(renderPlayer);
-      racerMesh.rider.update({
-        time: timeSeconds,
-        throttle: input.throttle,
-        steerAngle: racer.steerAngle,
-        drifting: racer.drifting,
-        boostActive: racer.boostActive,
-        impactActive: racer.recoveryTimer > 0,
-      });
       chase.update(
         renderPlayer,
         racer.heading,
@@ -369,6 +361,15 @@ function bootstrap(): void {
           checkpoints.state.routeTangent,
         ),
         speed: racer.speed,
+      });
+      racerMesh.rider.update({
+        time: timeSeconds,
+        throttle: input.throttle,
+        steerAngle: racer.steerAngle,
+        drifting: racer.drifting,
+        boostActive: racer.boostActive,
+        impactActive: racer.recoveryTimer > 0,
+        victory: raceSnapshot.phase === "finished",
       });
       const opponentSnapshots = opponents.snapshots();
       const position = calculatePosition(

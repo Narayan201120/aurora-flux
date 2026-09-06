@@ -68,6 +68,7 @@ export interface RiderAnimationInput {
   drifting: boolean;
   boostActive: boolean;
   impactActive: boolean;
+  victory: boolean;
 }
 
 export interface RiderHandle {
@@ -253,6 +254,14 @@ function createRider(
   return {
     group,
     update(input: RiderAnimationInput) {
+      if (input.victory) {
+        group.rotation.z = Math.sin(input.time * 5.2) * 0.24;
+        group.rotation.x = -0.18 + Math.sin(input.time * 4.2) * 0.08;
+        group.position.y = 0.34 + Math.abs(Math.sin(input.time * 4.8)) * 0.12;
+        scarf.rotation.y = Math.sin(input.time * 9.5) * 0.7;
+        visor.position.z = -0.22;
+        return;
+      }
       const lean = input.steerAngle * (input.drifting ? 0.9 : 0.55);
       group.rotation.z = -lean;
       group.rotation.x =
