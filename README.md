@@ -31,13 +31,14 @@ Then open http://127.0.0.1:5173/.
 
 ## Status
 
-The repository contains the playable release loop through M10:
+The repository contains the playable release loop through M11:
 
 - Three-lap aurora circuit with countdown, checkpoints, finish, and restart
 - Three procedural AI opponents with racing lines, drafting, overtaking,
   avoidance, recovery, personality, and position tracking
 - Procedural rider animation with finish celebration
 - Responsive race HUD with mobile verification and accessible field labels
+- Procedural Web Audio engine, ambient bed, event cues, and dynamic mixing
 - Procedural hazards (including dark matter storms), landmarks, riders, HUD,
   minimap, results, and Web Audio
 - Adaptive quality scaling and browser screenshot verification

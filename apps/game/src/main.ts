@@ -1,5 +1,5 @@
 import { Group, Vector2, Vector3, WebGLRenderer } from "three";
-import { AudioSystem } from "./audio/audioSystem.js";
+import { AudioSystem, type AudioSnapshot } from "./audio/audioSystem.js";
 import { AdaptiveQuality } from "./core/adaptiveQuality.js";
 import { GameLoop } from "./core/gameLoop.js";
 import { FpsMeter } from "./core/fpsMeter.js";
@@ -77,6 +77,7 @@ interface BrowserTestApi {
     phase: string;
     lapsCompleted: number;
     nextCheckpoint: number;
+    audio: AudioSnapshot;
   };
 }
 
@@ -288,6 +289,7 @@ function bootstrap(): void {
         phase: race.snapshot().phase,
         lapsCompleted: checkpoints.state.lapsCompleted,
         nextCheckpoint: checkpoints.state.nextIndex,
+        audio: audio.snapshot(),
       }),
     };
   }

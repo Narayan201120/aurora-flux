@@ -81,6 +81,21 @@ await page.screenshot({
 await page.keyboard.down("KeyW");
 await page.waitForTimeout(1800);
 await page.keyboard.up("KeyW");
+await page.waitForFunction(
+  () => window.__auroraFluxTest?.snapshot().audio.contextState === "running",
+  null,
+  { timeout: 5000 },
+);
+const audioReady = await page.evaluate(
+  () => window.__auroraFluxTest?.snapshot().audio,
+);
+if (
+  audioReady?.contextState !== "running" ||
+  !audioReady.events.includes("engine") ||
+  !audioReady.events.includes("ambient")
+) {
+  errors.push(`Audio graph did not unlock: ${JSON.stringify(audioReady)}`);
+}
 await page.screenshot({
   path: join(outputDirectory, "03-moving.png"),
   fullPage: true,
@@ -134,6 +149,11 @@ const raceResult = await page.evaluate(() =>
 );
 if (raceResult?.phase !== "finished" || raceResult.lapsCompleted !== 3) {
   errors.push(`Race did not finish in browser: ${JSON.stringify(raceResult)}`);
+}
+if (!raceResult?.audio.events.includes("finish")) {
+  errors.push(
+    `Finish audio cue did not fire: ${JSON.stringify(raceResult?.audio)}`,
+  );
 }
 if (!(await page.locator("#results-screen").isVisible())) {
   errors.push("Results screen did not become visible after the finish");
