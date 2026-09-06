@@ -11,18 +11,31 @@ import {
   HAZARD_WARNING_DISTANCE,
   createHazardSystem,
 } from "../apps/game/src/world/hazards.ts";
+import { createLandmarkSystem } from "../apps/game/src/world/landmarks.ts";
 
 const trackA = createTrackSystem();
 const trackB = createTrackSystem();
 const checkpointSystem = createCheckpointSystem(trackA);
 const race = new RaceState();
 const hazards = createHazardSystem(trackA);
+const landmarks = createLandmarkSystem();
 
 if (
   HAZARD_DEFINITIONS.length !== 6 ||
   !HAZARD_DEFINITIONS.some((hazard) => hazard.kind === "dark-matter")
 ) {
   throw new Error("Environmental hazard set is incomplete");
+}
+for (const name of [
+  "CrystalForestInstances",
+  "CelestialEclipseGate",
+  "CelestialLeviathan",
+  "StarWhaleNorth",
+  "StarWhaleSouth",
+]) {
+  if (!landmarks.group.children.some((child) => child.name === name)) {
+    throw new Error(`World landmark is missing: ${name}`);
+  }
 }
 
 for (const progress of [0, 0.12, 0.25, 0.38, 0.5, 0.62, 0.75, 0.88, 0]) {
@@ -148,5 +161,5 @@ if (!snapshot.wrongWay) {
 }
 
 console.log(
-  `race flow verified: ${trackA.length.toFixed(1)}m course, 3 laps, position ordering, wrong-way warning, six hazards`,
+  `race flow verified: ${trackA.length.toFixed(1)}m course, 3 laps, position ordering, wrong-way warning, six hazards, world landmarks`,
 );

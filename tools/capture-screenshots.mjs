@@ -73,10 +73,17 @@ if (!lapText?.includes("/ 03") || readyState?.phase === "countdown") {
   );
 }
 
+await page.evaluate(() => window.__auroraFluxTest?.teleportToProgress(0.5));
+await page.waitForTimeout(160);
+await page.screenshot({
+  path: join(outputDirectory, "04-world-landmarks.png"),
+  fullPage: true,
+});
+
 await page.evaluate(() => window.__auroraFluxTest?.teleportToProgress(0.76));
 await page.waitForTimeout(160);
 await page.screenshot({
-  path: join(outputDirectory, "04-dark-matter-storm.png"),
+  path: join(outputDirectory, "05-dark-matter-storm.png"),
   fullPage: true,
 });
 const hazardText = await page.locator("[data-hud=hazard]").textContent();
@@ -96,7 +103,7 @@ for (let lap = 0; lap < 3; lap += 1) {
 }
 await page.waitForTimeout(120);
 await page.screenshot({
-  path: join(outputDirectory, "05-finish.png"),
+  path: join(outputDirectory, "06-finish.png"),
   fullPage: true,
 });
 const raceResult = await page.evaluate(() =>
@@ -116,7 +123,7 @@ if (restartResult?.phase !== "countdown" || restartResult.lapsCompleted !== 0) {
   );
 }
 await page.screenshot({
-  path: join(outputDirectory, "06-restart-countdown.png"),
+  path: join(outputDirectory, "07-restart-countdown.png"),
   fullPage: true,
 });
 await browser.close();

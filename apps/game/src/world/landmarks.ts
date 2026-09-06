@@ -76,6 +76,9 @@ export function createLandmarkSystem(): LandmarkSystem {
   archB.rotation.z = 0.2;
   group.add(archB);
 
+  const gate = createCelestialGate();
+  group.add(gate);
+
   const moonMaterial = new MeshBasicMaterial({
     color: "#3d317a",
     transparent: true,
@@ -100,7 +103,9 @@ export function createLandmarkSystem(): LandmarkSystem {
   }
 
   const leviathan = createLeviathan();
-  group.add(leviathan);
+  const whaleNorth = createStarWhale("StarWhaleNorth");
+  const whaleSouth = createStarWhale("StarWhaleSouth");
+  group.add(leviathan, whaleNorth, whaleSouth);
 
   return {
     group,
@@ -116,13 +121,111 @@ export function createLandmarkSystem(): LandmarkSystem {
       leviathan.position.y = 22 + Math.sin(time * 0.7) * 2.5;
       leviathan.rotation.z = Math.cos(time * 0.18) * 0.12;
       leviathan.rotation.y = Math.cos(time * 0.18) > 0 ? 0.18 : Math.PI - 0.18;
+      whaleNorth.position.x = -58 + Math.sin(time * 0.11) * 18;
+      whaleNorth.position.y = 31 + Math.sin(time * 0.42) * 3.5;
+      whaleNorth.rotation.z = Math.sin(time * 0.11) * 0.14;
+      whaleNorth.rotation.y = Math.cos(time * 0.11) > 0 ? 0.12 : Math.PI - 0.12;
+      whaleSouth.position.x = -72 + Math.cos(time * 0.09) * 20;
+      whaleSouth.position.y = 27 + Math.cos(time * 0.34) * 3;
+      whaleSouth.rotation.z = Math.cos(time * 0.09) * 0.12;
+      whaleSouth.rotation.y = Math.sin(time * 0.09) > 0 ? 0.12 : Math.PI - 0.12;
+      gate.rotation.y = Math.sin(time * 0.16) * 0.08;
     },
   };
 }
 
+function createCelestialGate(): Group {
+  const group = new Group();
+  group.name = "CelestialEclipseGate";
+  group.position.set(-36, 18, 100);
+
+  const ringMaterial = new MeshBasicMaterial({
+    color: "#8b78ff",
+    transparent: true,
+    opacity: 0.62,
+    blending: AdditiveBlending,
+    depthWrite: false,
+  });
+  const outerRing = new Mesh(new TorusGeometry(22, 0.72, 16, 56), ringMaterial);
+  group.add(outerRing);
+  const innerRing = new Mesh(
+    new TorusGeometry(16, 0.24, 12, 48),
+    ringMaterial.clone(),
+  );
+  innerRing.rotation.z = 0.24;
+  group.add(innerRing);
+  const crossRing = new Mesh(
+    new TorusGeometry(20, 0.42, 14, 48),
+    ringMaterial.clone(),
+  );
+  crossRing.rotation.y = Math.PI / 2;
+  crossRing.rotation.z = -0.16;
+  group.add(crossRing);
+
+  const pillarGeometry = new ConeGeometry(1.7, 22, 5);
+  for (const x of [-22, 22]) {
+    const pillar = new Mesh(pillarGeometry, ringMaterial.clone());
+    pillar.position.set(x, -13, 0);
+    group.add(pillar);
+  }
+  return group;
+}
+
+function createStarWhale(name: string): Group {
+  const group = new Group();
+  group.name = name;
+  group.position.set(
+    name.endsWith("North") ? -58 : -72,
+    30,
+    name.endsWith("North") ? 125 : -45,
+  );
+
+  const bodyMaterial = new MeshBasicMaterial({
+    color: name.endsWith("North") ? "#72f5ff" : "#b08cff",
+    transparent: true,
+    opacity: 0.7,
+    blending: AdditiveBlending,
+    depthWrite: false,
+  });
+  const body = new Mesh(new SphereGeometry(4.2, 16, 10), bodyMaterial);
+  body.scale.set(2.5, 0.62, 0.78);
+  group.add(body);
+
+  const finMaterial = new MeshBasicMaterial({
+    color: "#e0d5ff",
+    transparent: true,
+    opacity: 0.72,
+    blending: AdditiveBlending,
+    depthWrite: false,
+  });
+  const finGeometry = new OctahedronGeometry(2.6, 0);
+  for (const [x, y, z] of [
+    [-1.5, 2.2, 0.4],
+    [1.5, -2.2, -0.2],
+  ] as const) {
+    const fin = new Mesh(finGeometry, finMaterial.clone());
+    fin.scale.set(1.5, 0.35, 0.6);
+    fin.position.set(x, y, z);
+    group.add(fin);
+  }
+
+  const tail = new Mesh(new ConeGeometry(2.6, 6.5, 5), finMaterial.clone());
+  tail.rotation.z = Math.PI / 2;
+  tail.position.x = -9.5;
+  group.add(tail);
+
+  const constellationGeometry = new IcosahedronGeometry(0.28, 0);
+  for (let index = 0; index < 5; index += 1) {
+    const star = new Mesh(constellationGeometry, finMaterial.clone());
+    star.position.set(-3 + index * 1.5, 0.6 + Math.sin(index) * 0.45, -0.85);
+    group.add(star);
+  }
+  return group;
+}
+
 function createLeviathan(): Group {
   const group = new Group();
-  group.name = "MigratingStarLeviathan";
+  group.name = "CelestialLeviathan";
   group.position.set(-40, 22, 158);
 
   const bodyMaterial = new MeshBasicMaterial({
