@@ -7,13 +7,14 @@ import {
   IcosahedronGeometry,
   Mesh,
   MeshBasicMaterial,
+  NormalBlending,
   TorusGeometry,
   Vector3,
 } from "three";
 import type { TrackSystem } from "../racing/track.js";
 
 export type HazardKind =
-  "meteor" | "lightning" | "gravity" | "fracture" | "comet";
+  "meteor" | "lightning" | "gravity" | "fracture" | "dark-matter" | "comet";
 
 export interface HazardWarning {
   kind: HazardKind;
@@ -25,6 +26,7 @@ export interface HazardWarning {
 export interface HazardEffect {
   speedMultiplier: number;
   steeringMultiplier: number;
+  visibilityMultiplier: number;
   active: boolean;
 }
 
@@ -57,7 +59,8 @@ interface HazardEntity {
 const UP = new Vector3(0, 1, 0);
 const SIDE = new Vector3();
 const POSITION = new Vector3();
-const HAZARD_DEFINITIONS: ReadonlyArray<
+export const HAZARD_WARNING_DISTANCE = 78;
+export const HAZARD_DEFINITIONS: ReadonlyArray<
   Pick<
     HazardEntity,
     "kind" | "label" | "progress" | "offset" | "radius" | "pulse"
@@ -103,6 +106,14 @@ const HAZARD_DEFINITIONS: ReadonlyArray<
     radius: 5.2,
     pulse: 1.2,
   },
+  {
+    kind: "dark-matter",
+    label: "DARK MATTER STORM",
+    progress: 0.76,
+    offset: 0,
+    radius: 7.4,
+    pulse: 2.9,
+  },
 ];
 
 export function createHazardSystem(track: TrackSystem): HazardSystem {
@@ -118,6 +129,7 @@ export function createHazardSystem(track: TrackSystem): HazardSystem {
   const effect: HazardEffect = {
     speedMultiplier: 1,
     steeringMultiplier: 1,
+    visibilityMultiplier: 1,
     active: false,
   };
 
@@ -142,12 +154,12 @@ export function createHazardSystem(track: TrackSystem): HazardSystem {
         POSITION.y += 1.2 + Math.sin(time * 2 + hazard.pulse) * 0.35;
         animateHazard(hazard, POSITION, time);
 
-        const progressGap = circularProgressDistance(
+        const progressGap = forwardProgressDistance(
           player.progress,
           hazard.progress,
         );
         const routeDistance = progressGap * track.length;
-        if (routeDistance < 78) {
+        if (routeDistance > 0 && routeDistance < HAZARD_WARNING_DISTANCE) {
           warnings.push({
             kind: hazard.kind,
             label: hazard.label,
@@ -169,6 +181,10 @@ export function createHazardSystem(track: TrackSystem): HazardSystem {
           } else if (hazard.kind === "lightning") {
             effect.speedMultiplier = 0.72;
             effect.steeringMultiplier = 0.8;
+          } else if (hazard.kind === "dark-matter") {
+            effect.speedMultiplier = 0.9;
+            effect.steeringMultiplier = 0.82;
+            effect.visibilityMultiplier = 0.58;
           } else {
             effect.speedMultiplier = 0.78;
           }
@@ -182,6 +198,7 @@ export function createHazardSystem(track: TrackSystem): HazardSystem {
       warnings.length = 0;
       effect.speedMultiplier = 1;
       effect.steeringMultiplier = 1;
+      effect.visibilityMultiplier = 1;
       effect.active = false;
     },
   };
@@ -194,14 +211,16 @@ function createHazardMesh(kind: HazardKind): Group {
       ? "#a37cff"
       : kind === "lightning"
         ? "#d8fbff"
-        : kind === "fracture"
-          ? "#ff67d8"
-          : "#ffb169";
+        : kind === "dark-matter"
+          ? "#33245e"
+          : kind === "fracture"
+            ? "#ff67d8"
+            : "#ffb169";
   const material = new MeshBasicMaterial({
     color,
     transparent: true,
-    opacity: 0.82,
-    blending: AdditiveBlending,
+    opacity: kind === "dark-matter" ? 0.68 : 0.82,
+    blending: kind === "dark-matter" ? NormalBlending : AdditiveBlending,
     depthWrite: false,
   });
 
@@ -232,6 +251,19 @@ function createHazardMesh(kind: HazardKind): Group {
     trail.rotation.x = -Math.PI / 2;
     trail.position.z = 2.6;
     group.add(trail);
+  } else if (kind === "dark-matter") {
+    const storm = new Mesh(new TorusGeometry(5.6, 0.34, 16, 48), material);
+    storm.rotation.x = Math.PI / 2;
+    group.add(storm);
+    const innerRing = new Mesh(
+      new TorusGeometry(3.2, 0.16, 12, 36),
+      material.clone(),
+    );
+    innerRing.rotation.x = Math.PI / 2;
+    innerRing.rotation.z = 0.35;
+    group.add(innerRing);
+    const core = new Mesh(new IcosahedronGeometry(1.5, 1), material.clone());
+    group.add(core);
   } else {
     const fracture = new Mesh(new TorusGeometry(3.8, 0.16, 8, 8), material);
     fracture.rotation.set(0.5, 0.2, 0.3);
@@ -258,9 +290,12 @@ function animateHazard(
       Math.sin(time * (hazard.kind === "meteor" ? 1.8 : 1.1) + hazard.pulse) *
       9;
   }
+  if (hazard.kind === "dark-matter") {
+    hazard.mesh.rotation.x = Math.sin(time * 0.7) * 0.22;
+    hazard.mesh.position.y += Math.sin(time * 1.3 + hazard.pulse) * 0.45;
+  }
 }
 
-function circularProgressDistance(left: number, right: number): number {
-  const gap = Math.abs(left - right);
-  return Math.min(gap, 1 - gap);
+function forwardProgressDistance(left: number, right: number): number {
+  return (right - left + 1) % 1;
 }

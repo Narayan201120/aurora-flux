@@ -73,6 +73,17 @@ if (!lapText?.includes("/ 03") || readyState?.phase === "countdown") {
   );
 }
 
+await page.evaluate(() => window.__auroraFluxTest?.teleportToProgress(0.76));
+await page.waitForTimeout(160);
+await page.screenshot({
+  path: join(outputDirectory, "04-dark-matter-storm.png"),
+  fullPage: true,
+});
+const hazardText = await page.locator("[data-hud=hazard]").textContent();
+if (!hazardText?.includes("DARK MATTER STORM")) {
+  errors.push(`Dark matter hazard was not surfaced in the HUD: ${hazardText}`);
+}
+
 const checkpointProgress = [0.12, 0.25, 0.38, 0.5, 0.62, 0.75, 0.88, 0];
 for (let lap = 0; lap < 3; lap += 1) {
   for (const progress of checkpointProgress) {
@@ -85,7 +96,7 @@ for (let lap = 0; lap < 3; lap += 1) {
 }
 await page.waitForTimeout(120);
 await page.screenshot({
-  path: join(outputDirectory, "04-finish.png"),
+  path: join(outputDirectory, "05-finish.png"),
   fullPage: true,
 });
 const raceResult = await page.evaluate(() =>
@@ -105,7 +116,7 @@ if (restartResult?.phase !== "countdown" || restartResult.lapsCompleted !== 0) {
   );
 }
 await page.screenshot({
-  path: join(outputDirectory, "05-restart-countdown.png"),
+  path: join(outputDirectory, "06-restart-countdown.png"),
   fullPage: true,
 });
 await browser.close();

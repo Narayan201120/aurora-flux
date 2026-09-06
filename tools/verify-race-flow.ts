@@ -6,11 +6,24 @@ import {
 import { calculatePosition } from "../apps/game/src/racing/position.ts";
 import { RaceState } from "../apps/game/src/racing/raceState.ts";
 import { createTrackSystem } from "../apps/game/src/racing/track.ts";
+import {
+  HAZARD_DEFINITIONS,
+  HAZARD_WARNING_DISTANCE,
+  createHazardSystem,
+} from "../apps/game/src/world/hazards.ts";
 
 const trackA = createTrackSystem();
 const trackB = createTrackSystem();
 const checkpointSystem = createCheckpointSystem(trackA);
 const race = new RaceState();
+const hazards = createHazardSystem(trackA);
+
+if (
+  HAZARD_DEFINITIONS.length !== 6 ||
+  !HAZARD_DEFINITIONS.some((hazard) => hazard.kind === "dark-matter")
+) {
+  throw new Error("Environmental hazard set is incomplete");
+}
 
 for (const progress of [0, 0.12, 0.25, 0.38, 0.5, 0.62, 0.75, 0.88, 0]) {
   const sampleA = trackA.sample(progress);
@@ -69,6 +82,52 @@ if (position.place !== 2 || position.total !== 4) {
   throw new Error("Position ordering is incorrect");
 }
 
+const warningSnapshot = hazards.update(0, 0, trackA.sample(0.12).position);
+const meteorWarning = warningSnapshot.warnings.find(
+  (warning) => warning.kind === "meteor",
+);
+if (
+  !meteorWarning ||
+  meteorWarning.distance <= 0 ||
+  meteorWarning.distance > HAZARD_WARNING_DISTANCE
+) {
+  throw new Error("Hazard warning did not provide forward reaction time");
+}
+
+const afterMeteorSnapshot = hazards.update(0, 0, trackA.sample(0.2).position);
+if (afterMeteorSnapshot.warnings.some((warning) => warning.kind === "meteor")) {
+  throw new Error("Hazard warning remained active after the hazard was passed");
+}
+
+const gravityMesh = hazards.group.children.find(
+  (child) => child.name === "gravity-hazard",
+);
+if (!gravityMesh) throw new Error("Gravity hazard visual was not created");
+const gravitySnapshot = hazards.update(0, 0, gravityMesh.position.clone());
+if (
+  !gravitySnapshot.effect.active ||
+  gravitySnapshot.activeLabel !== "GRAVITY WELL"
+) {
+  throw new Error("Gravity well did not apply its gameplay effect");
+}
+
+const darkMatterMesh = hazards.group.children.find(
+  (child) => child.name === "dark-matter-hazard",
+);
+if (!darkMatterMesh)
+  throw new Error("Dark matter storm visual was not created");
+const darkMatterSnapshot = hazards.update(
+  0,
+  4,
+  darkMatterMesh.position.clone(),
+);
+if (
+  !darkMatterSnapshot.effect.active ||
+  darkMatterSnapshot.effect.visibilityMultiplier >= 1
+) {
+  throw new Error("Dark matter storm did not reduce visibility while active");
+}
+
 const wrongWayRace = new RaceState();
 for (let index = 0; index < 31; index += 1) {
   wrongWayRace.update({
@@ -89,5 +148,5 @@ if (!snapshot.wrongWay) {
 }
 
 console.log(
-  `race flow verified: ${trackA.length.toFixed(1)}m course, 3 laps, position ordering, wrong-way warning`,
+  `race flow verified: ${trackA.length.toFixed(1)}m course, 3 laps, position ordering, wrong-way warning, six hazards`,
 );

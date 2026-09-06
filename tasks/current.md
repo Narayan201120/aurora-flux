@@ -1,10 +1,11 @@
 # Current objective
 
-Milestone: M13 polish pass / playable release candidate
+Milestone: M7 world content
 
-Aurora Flux now runs as a complete procedural arcade race loop. The player
-starts in a three-second countdown, races a three-lap circuit against three
-route-following opponents, receives live hazard warnings, and reaches a
+M6 is complete. Aurora Flux now runs as a complete procedural arcade race
+loop with six readable environmental hazards. The player starts in a
+three-second countdown, races a three-lap circuit against three route-following
+opponents, receives forward hazard warnings with reaction time, and reaches a
 results screen that can restart the race.
 
 ## Implemented systems
@@ -14,7 +15,7 @@ results screen that can restart the race.
 - Spring chase camera, drift framing, boost feedback, and floating-origin rebasing
 - Three distinct AI racers with pace, lane, and risk differences
 - Procedural rider pilots with lean, drift, boost, idle, and impact animation
-- Meteor, lightning, gravity-well, comet, and spatial-fracture hazards
+- Meteor, lightning, gravity-well, comet, spatial-fracture, and dark-matter hazards
 - Instanced crystal forests, celestial arches, shattered moon fragments, and a migrating leviathan
 - Race HUD with speed, lap, timer, position, boost charge, hazard channel, and minimap
 - Countdown, finish results, and restart flow

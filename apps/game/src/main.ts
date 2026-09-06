@@ -395,7 +395,8 @@ function bootstrap(): void {
         hazards: hazardSnapshot,
       });
       quality.update(meter.current.frameMs);
-      renderer.toneMappingExposure = 1 + exposureFlash;
+      renderer.toneMappingExposure =
+        hazardSnapshot.effect.visibilityMultiplier + exposureFlash;
       exposureFlash = Math.max(0, exposureFlash - deltaSeconds * 3.8);
 
       track.update(timeSeconds);
