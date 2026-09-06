@@ -1,11 +1,15 @@
 # Current objective
 
-Milestone: Release candidate
+Milestone: Phase 2 visual uplift, Stage 1 complete
 
-M13 is complete. Aurora Flux is a cohesive procedural arcade race loop with
-polished visuals, responsive UI, synthesized audio, balanced AI behavior,
-transient impact feedback, and a verified performance budget. The release
-candidate passes the full deterministic, browser, screenshot, and build suite.
+M13 remains complete and verified. Phase 2 is a post-release visual milestone.
+Stage 1 adds the Aurora Ribbon material upgrade, the presentation-only
+VisualState vocabulary, safe normalized audio-reactive sampling, bounded radial
+speed lines and chromatic pulses, and a fixed-capacity instanced FX pool. Race
+physics, handling, AI, checkpoints, and audio output safety remain unchanged.
+
+Next stage: improve procedural nebula depth and deterministic landmark framing
+after the motion effects have a stable screenshot baseline.
 
 ## Implemented systems
 
@@ -30,6 +34,8 @@ candidate passes the full deterministic, browser, screenshot, and build suite.
 - CPU, GPU, draw-call, triangle, geometry, and texture telemetry
 - Playwright browser harness with startup, movement, three-lap finish, and restart captures
 - Final polish pass with transient impact state and release-candidate checks
+- Phase 2 Stage 1 Aurora Ribbon flow, post-process motion feedback, safe audio
+  reactive state, and pooled visual FX
 
 ## Verification
 

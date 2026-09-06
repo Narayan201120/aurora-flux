@@ -25,6 +25,14 @@ export interface AudioSnapshot {
   engineWaveform: OscillatorType | "locked";
   masterGain: number;
   engineGain: number;
+  reactive: AudioReactiveState;
+}
+
+export interface AudioReactiveState {
+  low: number;
+  mid: number;
+  high: number;
+  pulse: number;
 }
 
 /** Small procedural soundtrack. It stays silent until a user gesture unlocks it. */
@@ -36,6 +44,14 @@ export class AudioSystem {
   private engineFilter: BiquadFilterNode | null = null;
   private engineGain: GainNode | null = null;
   private ambient: OscillatorNode | null = null;
+  private analyser: AnalyserNode | null = null;
+  private readonly analyserData = new Uint8Array(32);
+  private readonly reactive: AudioReactiveState = {
+    low: 0,
+    mid: 0,
+    high: 0,
+    pulse: 0,
+  };
   private lastStatus = "";
   private lastBoost = false;
   private lastDrift = false;
@@ -85,6 +101,7 @@ export class AudioSystem {
       context.currentTime,
       0.12,
     );
+    this.updateReactiveState();
 
     if (
       frame.race.statusLabel !== this.lastStatus &&
@@ -134,7 +151,12 @@ export class AudioSystem {
       engineWaveform: this.engine?.type ?? "locked",
       masterGain: this.master?.gain.value ?? 0,
       engineGain: this.engineGain?.gain.value ?? 0,
+      reactive: this.reactive,
     };
+  }
+
+  reactiveState(): Readonly<AudioReactiveState> {
+    return this.reactive;
   }
 
   dispose(): void {
@@ -142,6 +164,11 @@ export class AudioSystem {
     this.ambient?.stop();
     void this.context?.close();
     this.context = null;
+    this.analyser = null;
+    this.reactive.low = 0;
+    this.reactive.mid = 0;
+    this.reactive.high = 0;
+    this.reactive.pulse = 0;
   }
 
   private createGraph(): void {
@@ -155,7 +182,11 @@ export class AudioSystem {
     compressor.attack.value = 0.003;
     compressor.release.value = 0.15;
     master.connect(compressor);
-    compressor.connect(context.destination);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 64;
+    analyser.smoothingTimeConstant = 0.8;
+    compressor.connect(analyser);
+    analyser.connect(context.destination);
 
     const engineGain = context.createGain();
     engineGain.gain.value = 0.006;
@@ -187,8 +218,22 @@ export class AudioSystem {
     this.engineFilter = engineFilter;
     this.engineGain = engineGain;
     this.ambient = ambient;
+    this.analyser = analyser;
     this.record("engine");
     this.record("ambient");
+  }
+
+  private updateReactiveState(): void {
+    const analyser = this.analyser;
+    if (!analyser) return;
+    analyser.getByteFrequencyData(this.analyserData);
+    this.reactive.low = averageBand(this.analyserData, 0, 4);
+    this.reactive.mid = averageBand(this.analyserData, 4, 14);
+    this.reactive.high = averageBand(this.analyserData, 14, 32);
+    this.reactive.pulse = Math.min(
+      1,
+      this.reactive.low * 0.7 + this.reactive.mid * 0.25 + this.reactive.high * 0.05,
+    );
   }
 
   private record(event: AudioEventKind): void {
@@ -226,4 +271,13 @@ export class AudioSystem {
     this.playTone(392, 0.22, 0.12, "square");
     window.setTimeout(() => this.playTone(587, 0.34, 0.13, "square"), 110);
   }
+}
+
+function averageBand(data: Uint8Array, start: number, end: number): number {
+  let total = 0;
+  const safeEnd = Math.min(end, data.length);
+  for (let index = start; index < safeEnd; index += 1) {
+    total += data[index] ?? 0;
+  }
+  return safeEnd > start ? total / ((safeEnd - start) * 255) : 0;
 }

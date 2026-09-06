@@ -15,6 +15,9 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ColorGradePass } from "./colorGradePass.js";
 import { EdgePass } from "./edgePass.js";
+import { ImpactPulsePass } from "./impactPulsePass.js";
+import { SpeedLinePass } from "./speedLinePass.js";
+import type { PostProcessQuality } from "./quality.js";
 
 export interface PostProcessContext {
   composer: EffectComposer;
@@ -24,6 +27,9 @@ export interface PostProcessContext {
   depthTarget: WebGLRenderTarget;
   edgePass: EdgePass;
   colorGradePass: ColorGradePass;
+  speedLinePass: SpeedLinePass;
+  impactPulsePass: ImpactPulsePass;
+  setQuality: (quality: PostProcessQuality) => void;
   resize: (width: number, height: number) => void;
   render: (mainScene: Scene, camera: import("three").Camera) => void;
 }
@@ -76,6 +82,16 @@ export function createPostProcess(
   edgePass.setDepthTexture(depthTarget.texture);
   composer.addPass(edgePass);
 
+  // These passes are exposed for the frame loop but disabled by default until
+  // gameplay presentation state explicitly drives them.
+  const speedLinePass = new SpeedLinePass({ enabled: false });
+  speedLinePass.setSize(width, height);
+  composer.addPass(speedLinePass);
+
+  const impactPulsePass = new ImpactPulsePass({ enabled: false });
+  impactPulsePass.setSize(width, height);
+  composer.addPass(impactPulsePass);
+
   const colorGradePass = new ColorGradePass();
   colorGradePass.setSize(width, height);
   composer.addPass(colorGradePass);
@@ -96,6 +112,12 @@ export function createPostProcess(
     depthTarget,
     edgePass,
     colorGradePass,
+    speedLinePass,
+    impactPulsePass,
+    setQuality(quality: PostProcessQuality) {
+      speedLinePass.setQuality(quality);
+      impactPulsePass.setQuality(quality);
+    },
     resize(newWidth: number, newHeight: number) {
       const w = Math.max(1, Math.floor(newWidth));
       const h = Math.max(1, Math.floor(newHeight));
@@ -104,6 +126,8 @@ export function createPostProcess(
       depthTarget.setSize(w, h);
       edgePass.setSize(w, h);
       colorGradePass.setSize(w, h);
+      speedLinePass.setSize(w, h);
+      impactPulsePass.setSize(w, h);
       depthMaterial.needsUpdate = true;
     },
     render(mainScene: Scene, camera: import("three").Camera) {

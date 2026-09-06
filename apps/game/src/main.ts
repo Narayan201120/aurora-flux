@@ -1,4 +1,4 @@
-import { Group, Vector2, Vector3, WebGLRenderer } from "three";
+import { Color, Group, Vector2, Vector3, WebGLRenderer } from "three";
 import { AudioSystem, type AudioSnapshot } from "./audio/audioSystem.js";
 import { AdaptiveQuality } from "./core/adaptiveQuality.js";
 import { GameLoop } from "./core/gameLoop.js";
@@ -33,11 +33,19 @@ import { RaceState } from "./racing/raceState.js";
 import { createTrackSystem, type TrackSystem } from "./racing/track.js";
 import { FpsOverlay } from "./rendering/fpsOverlay.js";
 import {
+  createVisualFxPool,
+  type VisualFxPool,
+} from "./rendering/effects/visualFxPool.js";
+import {
   createPostProcess,
   type PostProcessContext,
 } from "./rendering/postprocess/composer.js";
 import { RaceHud } from "./rendering/raceHud.js";
 import { RaceStatusOverlay } from "./rendering/raceStatusOverlay.js";
+import {
+  createVisualState,
+  updateVisualState,
+} from "./rendering/visualState.js";
 import {
   createBaseScene,
   createCamera,
@@ -67,6 +75,7 @@ interface ApplicationState {
   rebase: WorldRebase;
   renderer: WebGLRenderer;
   post: PostProcessContext;
+  visualFx: VisualFxPool;
   gpuLabel: string;
   viewport: Vector3;
   racer: Racer;
@@ -245,6 +254,10 @@ function bootstrap(): void {
     height: container.clientHeight,
     pixelRatio: renderer.getPixelRatio(),
   });
+  post.speedLinePass.setEnabled(true);
+  post.impactPulsePass.setEnabled(true);
+  const visualFx = createVisualFxPool({ quality: tierFor(renderer) });
+  worldRoot.add(visualFx.group);
   const resize = new ResizeHandler([
     {
       element: container,
@@ -264,14 +277,29 @@ function bootstrap(): void {
   const quality = new AdaptiveQuality(
     renderer,
     tierFor(renderer),
-    environment.setQuality,
+    (tier) => {
+      environment.setQuality(tier);
+      post.setQuality(tier);
+      visualFx.setQuality(tier);
+    },
   );
   const race = new RaceState();
   const audio = new AudioSystem();
+  const visualState = createVisualState();
   let timeSeconds = 0;
   let lastBoostFlag = false;
   let lastImpactFlag = false;
   let exposureFlash = 0;
+  let boostPulse = 0;
+  let impactPulse = 0;
+  let nextSparkTime = 0;
+  let nextWakeTime = 0;
+  let fxSeed = 1;
+  const fxPosition = new Vector3();
+  const fxVelocity = new Vector3();
+  const sparkColor = new Color("#9affe0");
+  const wakeColor = new Color("#72f8ff");
+  const impactColor = new Color("#ff78ce");
 
   const resetRace = (): void => {
     racer.reset(startPosition, 0);
@@ -284,6 +312,11 @@ function bootstrap(): void {
     lastBoostFlag = false;
     lastImpactFlag = false;
     exposureFlash = 0;
+    boostPulse = 0;
+    impactPulse = 0;
+    nextSparkTime = 0;
+    nextWakeTime = 0;
+    visualFx.reset();
   };
   const hud = new RaceHud(hudRoot, track, resetRace);
   if (new URLSearchParams(window.location.search).has("test")) {
@@ -365,6 +398,7 @@ function bootstrap(): void {
       );
 
       worldRoot.position.set(-origin.x, -origin.y, -origin.z);
+      visualFx.update(timeSeconds);
       environment.group.position.copy(racer.position);
       checkpoints.update(racer.position, timeSeconds);
       for (const sphere of obstacles.spheres) racer.applyImpact(sphere);
@@ -386,6 +420,7 @@ function bootstrap(): void {
         impactActive: racer.recoveryTimer > 0,
         victory: raceSnapshot.phase === "finished",
       });
+      const racerSnapshot = racer.snapshot();
       const opponentSnapshots = opponents.snapshots();
       const position = calculatePosition(
         {
@@ -401,7 +436,7 @@ function bootstrap(): void {
       );
       hud.render({
         race: raceSnapshot,
-        racer: racer.snapshot(),
+        racer: racerSnapshot,
         position,
         routeProgress: checkpoints.state.routeProgress,
         hazards: hazardSnapshot,
@@ -409,9 +444,17 @@ function bootstrap(): void {
       });
       status.render(raceSnapshot);
       audio.update({
-        racer: racer.snapshot(),
+        racer: racerSnapshot,
         race: raceSnapshot,
         hazards: hazardSnapshot,
+      });
+      updateVisualState(visualState, {
+        time: timeSeconds,
+        progress: checkpoints.state.routeProgress,
+        racer: racerSnapshot,
+        hazards: hazardSnapshot,
+        audio: audio.reactiveState(),
+        quality: quality.tier,
       });
       quality.update(meter.current.frameMs);
       renderer.toneMappingExposure =
@@ -424,11 +467,74 @@ function bootstrap(): void {
         chase.triggerFovPulse(8, 0.6);
         chase.triggerShake(0.12, 0.25);
         exposureFlash = Math.max(exposureFlash, 0.22);
+        boostPulse = 1;
       }
       lastBoostFlag = racer.boostActive;
       const inRecovery = racer.lastImpact !== null && racer.recoveryTimer > 0;
-      if (inRecovery && !lastImpactFlag) chase.triggerShake(0.25, 0.35);
+      if (inRecovery && !lastImpactFlag) {
+        chase.triggerShake(0.25, 0.35);
+        impactPulse = 1;
+        fxPosition.copy(racer.position);
+        fxVelocity.copy(racer.velocity).multiplyScalar(0.15);
+        visualFx.spawnImpactBurst(
+          timeSeconds,
+          fxPosition,
+          fxVelocity,
+          impactColor,
+          1.8,
+          0.42,
+          0.95,
+          racer.heading,
+          fxSeed,
+        );
+        fxSeed += 1;
+      }
       lastImpactFlag = inRecovery;
+      if (racer.drifting && timeSeconds >= nextSparkTime) {
+        fxPosition.copy(racer.position);
+        fxPosition.y -= 0.3;
+        fxVelocity.copy(racer.velocity).multiplyScalar(-0.18);
+        visualFx.spawnDriftSpark(
+          timeSeconds,
+          fxPosition,
+          fxVelocity,
+          sparkColor,
+          0.28,
+          0.32,
+          0.78,
+          racer.heading,
+          fxSeed,
+        );
+        fxSeed += 1;
+        nextSparkTime = timeSeconds + 0.035;
+      }
+      if (Math.abs(racer.speed) > 9 && timeSeconds >= nextWakeTime) {
+        fxPosition.copy(racer.position);
+        fxPosition.y -= 0.42;
+        fxVelocity.copy(racer.velocity).multiplyScalar(-0.25);
+        visualFx.spawnEngineWake(
+          timeSeconds,
+          fxPosition,
+          fxVelocity,
+          racer.boostActive ? impactColor : wakeColor,
+          racer.boostActive ? 0.34 : 0.22,
+          0.38,
+          racer.boostActive ? 0.92 : 0.58,
+          racer.heading,
+          fxSeed,
+        );
+        fxSeed += 1;
+        nextWakeTime = timeSeconds + 0.07;
+      }
+      boostPulse = Math.max(0, boostPulse - deltaSeconds * 2.4);
+      impactPulse = Math.max(0, impactPulse - deltaSeconds * 3.8);
+      post.speedLinePass.update(
+        timeSeconds,
+        visualState.speed01,
+        visualState.boost01,
+        visualState.draft01,
+      );
+      post.impactPulsePass.setPulses(boostPulse, impactPulse);
       telemetry.recordCpu(performance.now() - cpuStart);
     },
     onRender: () => {
@@ -457,6 +563,7 @@ function bootstrap(): void {
     rebase,
     renderer,
     post,
+    visualFx,
     gpuLabel: gpuShortName(renderer),
     viewport,
     racer,
@@ -477,6 +584,7 @@ function bootstrap(): void {
     loop.stop();
     resize.detach();
     hud.dispose();
+    visualFx.dispose();
     audio.dispose();
     renderer.dispose();
     controls.dispose();
